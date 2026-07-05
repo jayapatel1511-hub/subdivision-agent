@@ -21,6 +21,7 @@ from constraints import ConstraintEngine
 from generator import LayoutGenerator
 from checker import LotChecker, LayoutScorer
 from export import export_geojson, export_dxf, export_summary
+from intake_geojson import load_geojson_parcel
 
 
 def make_rectangular_parcel(width: float, depth: float) -> Parcel:
@@ -123,10 +124,22 @@ def main():
     parser.add_argument("--format", default="geojson",
                         choices=["geojson", "dxf", "json", "all"],
                         help="Export format")
+    parser.add_argument("--geojson", default=None,
+                        help="Path to GeoJSON file for irregular parcel input")
     args = parser.parse_args()
 
     # ── Create Parcel ──
-    if "x" in args.parcel:
+    if args.geojson:
+        # Load parcel from GeoJSON (irregular parcel path)
+        parcel = load_geojson_parcel(args.geojson)
+        # Override zone/servicing from CLI if provided
+        if args.zone != "R-2" or args.servicing != "serviced":
+            parcel.zone_code = args.zone
+        # Use parcel dimensions from geometry
+        bounds = parcel.geometry.bounds
+        w = bounds[2] - bounds[0]
+        h = bounds[3] - bounds[1]
+    elif "x" in args.parcel:
         w, h = map(float, args.parcel.split("x"))
     else:
         w, h = 300, 200

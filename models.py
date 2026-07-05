@@ -135,6 +135,15 @@ class WarningLevel(str, Enum):
     CAUTION = "caution"
     FAIL = "fail"
 
+class ParcelShape(str, Enum):
+    """Shape classification for dispatch in the generator."""
+    RECTANGLE = "rectangle"
+    CONVEX = "convex"
+    CONCAVE = "concave"
+    L_SHAPE = "l_shape"
+    CORRIDOR = "corridor"
+    MULTI_PART = "multi_part"
+
 # ── Core Geometric Objects ──────────────────────────────────────────────────
 
 @dataclass
@@ -143,6 +152,7 @@ class AccessPoint:
     point: tuple[float, float]        # (x, y)
     direction: tuple[float, float]    # unit vector pointing into parcel
     road_name: str = ""
+    source: str = "geojson"           # "geojson" or "derived"
 
 @dataclass
 class ConstraintArea:
@@ -278,6 +288,9 @@ class LayoutRules:
     corner_lot_frontage_reduction: float = 0.0  # % reduction for corner lots
     private_road_min_width: float = 10.0  # m (NS reg)
     open_space_dedication_pct: float = 0.05  # 5% for parkland
+
+    # Irregular parcel feature flag
+    allow_irregular_carving: bool = True  # feature flag kill switch
 
     # Scoring weights
     w_lot_yield: float = 1.0
@@ -511,6 +524,14 @@ class Parcel:
     pid: str = ""
     zone_code: str = ""
     municipality: str = "hrm"
+    source_crs: int = 4326           # CRS the GeoJSON was in
+    working_crs: int = 2959          # CRS we compute in
+    shape: ParcelShape = ParcelShape.RECTANGLE
+
+    @property
+    def is_irregular(self) -> bool:
+        """True if the parcel shape requires the irregular code path."""
+        return self.shape not in (ParcelShape.RECTANGLE, ParcelShape.CONVEX)
 
     @property
     def gross_area(self) -> float:

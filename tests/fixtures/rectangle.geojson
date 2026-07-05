@@ -1,0 +1,25 @@
+{
+  "type": "FeatureCollection",
+  "crs": { "type": "name", "properties": { "name": "urn:ogc:def:crs:EPSG::2959" } },
+  "features": [
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "Polygon",
+        "coordinates": [[
+          [0, 0], [300, 0], [300, 200], [0, 200], [0, 0]
+        ]]
+      },
+      "properties": {
+        "zone_code": "R-2",
+        "servicing_type": "serviced",
+        "pid": "rectangle-test"
+      }
+    },
+    {
+      "type": "Feature",
+      "geometry": { "type": "Point", "coordinates": [0, 100] },
+      "properties": { "feature_type": "access", "direction": [1, 0] }
+    }
+  ]
+}

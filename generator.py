@@ -26,7 +26,10 @@ from models import (
     RoadPattern, LotType, LayoutWarning, WarningLevel, ServiceType,
     compactness, poly_area, poly_union, poly_difference, poly_buffer,
     frontage_length, minimum_rotated_rectangle_area,
+    ParcelShape,
 )
+from shape_analysis import detect_parcel_shape
+from irregular_generator import IrregularRoadPlacer, IrregularLotCarver
 
 class LayoutGenerator:
     """Generate subdivision layout options from a parcel + rules."""
@@ -541,6 +544,15 @@ class LayoutGenerator:
         """Generate a single layout option for the given pattern."""
         self._reset_lot_counter()
 
+        # ── Shape detection dispatch ──
+        shape = detect_parcel_shape(self.parcel.geometry)
+        self.parcel.shape = shape
+
+        if (shape not in (ParcelShape.RECTANGLE, ParcelShape.CONVEX)
+                and self.rules.allow_irregular_carving):
+            return self._generate_irregular_layout(pattern, road_length)
+
+        # ── Existing rectangle code path (UNCHANGED) ──
         pattern_name = {
             RoadPattern.EXISTING_ROAD: "A",
             RoadPattern.SINGLE_ROAD: "B",
@@ -718,3 +730,101 @@ class LayoutGenerator:
                 best_seg = seg
 
         return best_seg
+
+    # ── Irregular Parcel Code Path ───────────────────────────────────────
+
+    def _generate_irregular_layout(self, pattern: RoadPattern,
+                                    road_length: float = None) -> LayoutResult:
+        """Generate a layout for an irregular parcel using the irregular code path."""
+        pattern_name = {
+            RoadPattern.EXISTING_ROAD: "A",
+            RoadPattern.SINGLE_ROAD: "B",
+            RoadPattern.CUL_DE_SAC: "C",
+            RoadPattern.LOOP_ROAD: "D",
+            RoadPattern.T_ROAD: "E",
+            RoadPattern.SPINE_BRANCH: "F",
+        }.get(pattern, "X")
+
+        result = LayoutResult(
+            name=pattern_name,
+            pattern=pattern,
+            rules=self.rules,
+            gross_area=self.parcel.gross_area,
+        )
+
+        # Compute buildable area (subtract constraints)
+        buildable = self.parcel.buildable_area
+        if buildable.is_empty:
+            result.warnings.append(LayoutWarning(
+                level=WarningLevel.FAIL,
+                message="No buildable area after constraints",
+            ))
+            return result
+
+        result.area_lost_to_constraints = self.parcel.gross_area - buildable.area
+
+        # Existing road pattern — carve along boundary
+        if pattern == RoadPattern.EXISTING_ROAD:
+            boundary = self._get_front_boundary()
+            if boundary:
+                lots = self._carve_lots_along_boundary(boundary, buildable)
+                result.lots = lots
+            self._finalize_irregular_result(result, [], buildable)
+            return result
+
+        # Generate roads using irregular road placer
+        pattern_str = pattern.value
+        road_placer = IrregularRoadPlacer()
+        roads = road_placer.place_roads(self.parcel, self.rules, pattern_str)
+
+        if not roads:
+            result.warnings.append(LayoutWarning(
+                level=WarningLevel.FAIL,
+                message=f"Could not generate roads for pattern {pattern.value}",
+            ))
+            return result
+
+        # Subtract road ROW from buildable area
+        row_polys = [r.row_polygon for r in roads]
+        row_union = unary_union(row_polys)
+
+        developable = buildable.difference(row_union)
+        if developable.is_empty:
+            result.warnings.append(LayoutWarning(
+                level=WarningLevel.FAIL,
+                message="No developable area after road subtraction",
+            ))
+            return result
+
+        result.area_lost_to_row = row_union.intersection(self.parcel.geometry).area
+
+        # Carve lots using irregular lot carver
+        self._current_roads = roads
+        carver = IrregularLotCarver()
+        carver._lot_counter = 0  # Start lot IDs from 1
+
+        all_lots = carver.carve(roads, developable, self.rules)
+
+        # Renumber lots to be consistent
+        for i, lot in enumerate(all_lots, 1):
+            lot.id = i
+
+        # Sliver merge using existing logic
+        target_area = self.rules.lot_width_target * self.rules.lot_depth_target
+        all_lots = self._merge_slivers(all_lots, developable, target_area)
+
+        result.lots = all_lots
+        result.roads = roads
+
+        self._finalize_irregular_result(result, roads, buildable)
+        return result
+
+    def _finalize_irregular_result(self, result: LayoutResult,
+                                    roads: list[RoadSegment],
+                                    buildable):
+        """Compute final area metrics for an irregular layout."""
+        net_area = result.gross_area - result.area_lost_to_constraints - result.area_lost_to_row
+        result.net_usable_area = net_area
+        result.remaining_developable = net_area - sum(l.area for l in result.lots)
+        if roads:
+            result.area_lost_to_row = sum(r.area for r in roads)
