@@ -1,8 +1,10 @@
 """
 Subdivision Agent — Lot Checker & Buildable Envelope.
 
-Checks every lot against the rule set and generates buildable/service
-envelopes. The checker is what separates a "pretty picture" from a
+Checks every residential lot against the rule set and generates buildable/service
+envelopes. Remainder lots are NOT checked for compliance — they're reported separately.
+
+The checker is what separates a "pretty picture" from a
 "this layout will actually get approved" assessment.
 """
 
@@ -14,20 +16,37 @@ from typing import Optional
 from shapely.geometry import Polygon, LineString, Point, MultiPolygon
 from shapely.ops import unary_union
 
-from models import Lot, LayoutRules, LayoutResult, LayoutWarning, WarningLevel, ServiceType
+from models import Lot, LotType, LayoutRules, LayoutResult, LayoutWarning, WarningLevel, ServiceType
 
 
 class LotChecker:
-    """Check every lot in a layout against the rules."""
+    """Check every residential lot in a layout against the rules."""
 
     def __init__(self, rules: LayoutRules, constraint_areas: list = None):
         self.rules = rules
         self.constraint_areas = constraint_areas or []
 
     def check_lot(self, lot: Lot) -> Lot:
-        """Run all checks on a single lot. Returns the lot with check results filled in."""
-        # Compute basic properties first
+        """Run all checks on a single lot. Returns the lot with check results filled in.
+
+        Only residential lots (RESIDENTIAL, CORNER, IRREGULAR) are meaningfully checked.
+        Remainder lots get a skip marker — they don't count as failed residential.
+        """
+        # Always compute properties
         lot.compute_properties()
+
+        # Remainder and infrastructure lots are NOT checked for residential compliance
+        if not lot.is_residential:
+            lot.passes_all = False  # Not a passing residential lot
+            # Set all checks to False — these lots are excluded from yield
+            lot.passes_area = False
+            lot.passes_frontage = False
+            lot.passes_depth = False
+            lot.passes_shape = False
+            lot.passes_buildable = False
+            lot.passes_access = False
+            lot.passes_service = False
+            return lot
 
         # ── Area check ──
         lot.passes_area = lot.area >= self.rules.min_lot_area
@@ -36,7 +55,7 @@ class LotChecker:
         lot.passes_frontage = lot.frontage >= self.rules.min_frontage
 
         # Apply corner lot frontage reduction
-        if lot.lot_type.value == "corner" and self.rules.corner_lot_frontage_reduction > 0:
+        if lot.lot_type == LotType.CORNER and self.rules.corner_lot_frontage_reduction > 0:
             reduced_min = self.rules.min_frontage * (1 - self.rules.corner_lot_frontage_reduction)
             lot.passes_frontage = lot.frontage >= reduced_min
 
@@ -89,56 +108,61 @@ class LotChecker:
         return lot
 
     def check_layout(self, result: LayoutResult) -> LayoutResult:
-        """Check all lots in a layout result."""
+        """Check all lots in a layout result. Only residential lots are checked
+        for compliance. Remainder lots are marked but not counted as failures.
+        After checking, compute_area_metrics() is called to fill in saleable
+        land % and other area breakdowns.
+        """
         for lot in result.lots:
             self.check_lot(lot)
 
-        # Add layout-level warnings
-        failed = [l for l in result.lots if not l.passes_all]
-        if failed:
+        # Layout-level warnings — only count residential lots
+        failed_residential = [l for l in result.lots if l.is_residential and not l.passes_all]
+        if failed_residential:
             result.warnings.append(LayoutWarning(
                 level=WarningLevel.CAUTION,
-                message=f"{len(failed)} lots fail compliance checks",
+                message=f"{len(failed_residential)} residential lots fail compliance checks",
             ))
 
-        irregular = [l for l in result.lots if l.lot_type.value in ("irregular", "flag", "remainder")]
-        if len(irregular) > len(result.lots) * self.rules.max_irregular_lot_pct:
+        remainder_lots = result.remainder_lots
+        if remainder_lots:
+            result.warnings.append(LayoutWarning(
+                level=WarningLevel.INFO,
+                message=f"{len(remainder_lots)} remainder pieces ({sum(l.area for l in remainder_lots):.0f}m²) not counted in yield",
+            ))
+
+        irregular_residential = [l for l in result.lots if l.lot_type == LotType.IRREGULAR]
+        total_residential = len(result.residential_lots)
+        if total_residential > 0 and len(irregular_residential) > total_residential * self.rules.max_irregular_lot_pct:
             result.warnings.append(LayoutWarning(
                 level=WarningLevel.CAUTION,
-                message=f"Too many irregular lots: {len(irregular)}/{len(result.lots)} "
-                         f"(max {self.rules.max_irregular_lot_pct*100:.0f}%)",
+                message=f"Too many irregular lots: {len(irregular_residential)}/{total_residential} "
+                        f"(max {self.rules.max_irregular_lot_pct*100:.0f}%)",
             ))
 
-        # Check density cap
+        # Check density cap — residential lots only
         if self.rules.max_density is not None and result.gross_area > 0:
-            density = len(result.lots) / (result.gross_area / 10000)
+            density = result.passing_lots / (result.gross_area / 10000)
             if density > self.rules.max_density:
                 result.warnings.append(LayoutWarning(
                     level=WarningLevel.FAIL,
                     message=f"Density {density:.1f} units/ha exceeds max {self.rules.max_density:.1f}",
                 ))
 
+        # Compute area metrics AFTER all lots are checked
+        result.compute_area_metrics()
+
         return result
 
     def _compute_buildable_envelope(self, lot: Lot) -> Optional[Polygon]:
-        """Compute the buildable envelope inside a lot after applying setbacks.
-
-        The buildable envelope = lot geometry minus:
-        - Front setback
-        - Rear setback
-        - Side setbacks (both sides)
-        - Flankage setback (for corner lots)
-        """
+        """Compute the buildable envelope inside a lot after applying setbacks."""
         if lot.geometry is None or lot.geometry.is_empty:
             return None
 
-        # Buffer inward by setbacks
-        # Use a simplified approach: buffer the lot inward by the minimum setback
         min_setback = min(self.rules.front_setback, self.rules.rear_setback,
                           self.rules.side_setback)
 
         try:
-            # Negative buffer = shrink inward
             envelope = lot.geometry.buffer(-min_setback, join_style=2)
             if envelope.is_empty or not isinstance(envelope, Polygon):
                 return None
@@ -148,11 +172,9 @@ class LotChecker:
         # For unserviced lots, subtract service reserve
         if self.rules.service_type in (ServiceType.WELL_SEPTIC, ServiceType.MUNICIPAL_WATER_SEPTIC):
             if self.rules.septic_reserve_pct > 0:
-                # The buildable envelope must still have room after reserving
-                # septic area. Reduce envelope further by the reserve percentage.
                 min_after_reserve = lot.area * (1 - self.rules.septic_reserve_pct)
                 if envelope.area < min_after_reserve * 0.5:
-                    return None  # Not enough room for building + septic
+                    return None
 
         return envelope
 
@@ -165,26 +187,22 @@ class LotChecker:
         - Well: needs isolation from septic and boundaries
         """
         if self.rules.service_type == ServiceType.MUNICIPAL_WATER_SEWER:
-            return True  # Already covered by min area/frontage
+            return True
 
         if self.rules.service_type in (ServiceType.WELL_SEPTIC, ServiceType.MUNICIPAL_WATER_SEPTIC):
-            # Need enough area for septic field reserve
             if self.rules.septic_reserve_pct > 0:
                 reserve_area = lot.area * self.rules.septic_reserve_pct
-                if reserve_area < 100:  # Absolute minimum septic field area
+                if reserve_area < 100:
                     return False
-
-            # Well protection: lot must be wider than 2× well protection radius
             if self.rules.well_protection_radius > 0:
                 if lot.width_min < self.rules.well_protection_radius * 1.5:
                     return False
 
         if self.rules.service_type == ServiceType.FUTURE_MUNICIPAL:
-            return True  # Design for future, check as municipal
+            return True
 
         if self.rules.service_type == ServiceType.UNKNOWN:
-            # Conservative: check as unserviced
-            if lot.area < self.rules.min_lot_area * 1.2:  # 20% margin
+            if lot.area < self.rules.min_lot_area * 1.2:
                 return False
 
         return True
@@ -195,7 +213,7 @@ class LotChecker:
         for ca in self.constraint_areas:
             if lot.geometry.intersects(ca.geometry):
                 overlap_pct = lot.geometry.intersection(ca.geometry).area / lot.area * 100
-                if overlap_pct > 5:  # >5% overlap is a conflict
+                if overlap_pct > 5:
                     conflicts.append(f"{ca.name}: {overlap_pct:.0f}% overlap")
         return conflicts
 
@@ -211,82 +229,84 @@ class LayoutScorer:
                 + w_future × future_score
                 − p_irregular × irregular_count
                 − p_road × total_road_length
-                − p_approval × failed_lot_count
+                − p_approval × failed_residential_count
     """
 
     def __init__(self, rules: LayoutRules):
         self.rules = rules
 
     def score_layout(self, result: LayoutResult) -> LayoutResult:
-        """Compute all scores for a layout result."""
+        """Compute all scores for a layout result.
+
+        Scoring uses ONLY residential lots for yield, quality, and penalties.
+        Remainder lots are excluded from yield but reported separately.
+        """
         r = result
-        w = self.rules  # weights
+        w = self.rules
+
+        residential = r.residential_lots
+        passing = [l for l in residential if l.passes_all]
+        failing = [l for l in residential if not l.passes_all]
 
         # ── Lot Yield Score ──
-        # How many lots relative to theoretical max
-        theoretical_max = r.gross_area / (w.min_lot_area * 1.2)  # 20% buffer for roads etc
+        # Passing residential lots relative to theoretical max
+        theoretical_max = r.gross_area / (w.min_lot_area * 1.2)
         if theoretical_max > 0:
-            r.score.lot_yield_score = min(r.passing_lots / theoretical_max, 1.0) * 100
+            r.score.lot_yield_score = min(len(passing) / theoretical_max, 1.0) * 100
         else:
             r.score.lot_yield_score = 0
 
         # ── Lot Quality Score ──
-        # Average shape quality of passing lots
-        passing_lots = [l for l in r.lots if l.passes_all]
-        if passing_lots:
-            avg_shape = sum(l.shape_quality for l in passing_lots) / len(passing_lots)
-            avg_area_ratio = sum(l.area / w.min_lot_area for l in passing_lots) / len(passing_lots)
-            # Quality = geometric mean of shape quality and area adequacy
+        # Average shape quality of passing residential lots
+        if passing:
+            avg_shape = sum(l.shape_quality for l in passing) / len(passing)
+            avg_area_ratio = sum(l.area / w.min_lot_area for l in passing) / len(passing)
             r.score.lot_quality_score = math.sqrt(avg_shape * min(avg_area_ratio, 2.0)) * 50
         else:
             r.score.lot_quality_score = 0
 
         # ── Road Efficiency Score ──
-        # Lots per metre of road — more is better
         if r.total_road_length > 0:
-            lpm = r.lots_per_road_metre
-            # Target: 0.08 lots/metre (good efficiency)
+            lpm = len(residential) / r.total_road_length
             r.score.road_efficiency_score = min(lpm / 0.08, 1.0) * 100
         else:
-            # Existing road pattern — no new road needed, max efficiency
             r.score.road_efficiency_score = 100
 
         # ── Constraint Avoidance Score ──
-        # How few lots have constraint conflicts
-        lots_with_conflicts = sum(1 for l in r.lots if l.constraint_conflicts)
-        if r.total_lots > 0:
-            conflict_free_ratio = 1 - (lots_with_conflicts / r.total_lots)
+        lots_with_conflicts = sum(1 for l in residential if l.constraint_conflicts)
+        if len(residential) > 0:
+            conflict_free_ratio = 1 - (lots_with_conflicts / len(residential))
             r.score.constraint_avoidance_score = conflict_free_ratio * 100
         else:
             r.score.constraint_avoidance_score = 0
 
         # ── Service Feasibility Score ──
-        # How many lots pass service check
-        service_passing = sum(1 for l in r.lots if l.passes_service)
-        if r.total_lots > 0:
-            r.score.service_feasibility_score = (service_passing / r.total_lots) * 100
+        service_passing = sum(1 for l in residential if l.passes_service)
+        if len(residential) > 0:
+            r.score.service_feasibility_score = (service_passing / len(residential)) * 100
         else:
             r.score.service_feasibility_score = 0
 
         # ── Future Expansion Score ──
-        # Does the layout leave room for future phases?
-        # Remainder area as % of gross
+        # Remainder area as % of gross — sweet spot 10-20%
         if r.gross_area > 0:
-            remainder_pct = r.remaining_developable / r.gross_area
-            # Sweet spot: 10-20% remainder is good for future
+            remainder_pct = r.remainder_area / r.gross_area
             if 0.05 < remainder_pct < 0.25:
                 r.score.future_expansion_score = 100
             elif remainder_pct >= 0.25:
-                r.score.future_expansion_score = 50  # Too much leftover = inefficient
+                r.score.future_expansion_score = 50
             else:
-                r.score.future_expansion_score = 20  # Packed tight
+                r.score.future_expansion_score = 20
         else:
             r.score.future_expansion_score = 0
 
         # ── Penalties ──
-        r.score.irregular_lot_penalty = r.irregular_lot_count * w.p_irregular_lot * 10
+        # Irregular count = IRREGULAR residential lots only (not remainders)
+        irregular_count = sum(1 for l in residential if l.lot_type == LotType.IRREGULAR)
+        r.score.irregular_lot_penalty = irregular_count * w.p_irregular_lot * 10
         r.score.long_road_penalty = r.total_road_length * w.p_long_road
-        r.score.approval_risk_penalty = r.failed_lots * w.p_approval_risk * 10
+        # Approval risk = failed RESIDENTIAL lots only (not remainders)
+        r.score.approval_risk_penalty = len(failing) * w.p_approval_risk * 10
 
         # ── Total Score ──
         r.score.total_score = (
@@ -356,22 +376,26 @@ class LayoutScorer:
             lines.append(f"  Weaknesses: {', '.join(weaknesses)}.")
 
         # Specific callouts
-        if result.failed_lots > 0:
+        failed_residential = [l for l in result.lots if l.is_residential and not l.passes_all]
+        if failed_residential:
             fail_reasons = {}
-            for lot in result.lots:
-                if not lot.passes_all:
-                    reasons = []
-                    if not lot.passes_area: reasons.append("area")
-                    if not lot.passes_frontage: reasons.append("frontage")
-                    if not lot.passes_depth: reasons.append("depth")
-                    if not lot.passes_shape: reasons.append("shape")
-                    if not lot.passes_buildable: reasons.append("buildable")
-                    if not lot.passes_service: reasons.append("service")
-                    for r in reasons:
-                        fail_reasons[r] = fail_reasons.get(r, 0) + 1
+            for lot in failed_residential:
+                reasons = []
+                if not lot.passes_area: reasons.append("area")
+                if not lot.passes_frontage: reasons.append("frontage")
+                if not lot.passes_depth: reasons.append("depth")
+                if not lot.passes_shape: reasons.append("shape")
+                if not lot.passes_buildable: reasons.append("buildable")
+                if not lot.passes_service: reasons.append("service")
+                for r in reasons:
+                    fail_reasons[r] = fail_reasons.get(r, 0) + 1
             if fail_reasons:
                 reason_str = ", ".join(f"{v}× {k}" for k, v in sorted(fail_reasons.items(), key=lambda x: -x[1]))
                 lines.append(f"  Lot failures: {reason_str}.")
+
+        remainder = result.remainder_lots
+        if remainder:
+            lines.append(f"  Remainder: {len(remainder)} pieces ({result.remainder_area:.0f}m²) — excluded from yield.")
 
         if result.remaining_developable > result.gross_area * 0.15:
             lines.append(f"  {result.remaining_developable:.0f}m² leftover — consider future phase.")

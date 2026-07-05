@@ -11,8 +11,7 @@ from pathlib import Path
 
 from shapely.geometry import mapping
 
-from models import LayoutResult, Lot, RoadSegment, layout_result_to_dict
-
+from models import LayoutResult, Lot, RoadSegment, LotType, layout_result_to_dict
 
 def export_geojson(result: LayoutResult, path: str = None) -> dict:
     """Export a LayoutResult as GeoJSON FeatureCollection.
@@ -32,18 +31,19 @@ def export_geojson(result: LayoutResult, path: str = None) -> dict:
                 "layer": "lots",
                 "lot_id": lot.id,
                 "lot_type": lot.lot_type.value,
+                "is_residential": lot.is_residential,
                 "area_sqm": round(lot.area, 1),
                 "frontage_m": round(lot.frontage, 1),
                 "depth_m": round(lot.depth, 1),
                 "width_min_m": round(lot.width_min, 1),
                 "shape_quality": round(lot.shape_quality, 3),
-                "passes_all": lot.passes_all,
-                "passes_area": lot.passes_area,
-                "passes_frontage": lot.passes_frontage,
-                "passes_depth": lot.passes_depth,
-                "passes_shape": lot.passes_shape,
-                "passes_buildable": lot.passes_buildable,
-                "passes_service": lot.passes_service,
+                "passes_all": lot.passes_all if lot.is_residential else None,
+                "passes_area": lot.passes_area if lot.is_residential else None,
+                "passes_frontage": lot.passes_frontage if lot.is_residential else None,
+                "passes_depth": lot.passes_depth if lot.is_residential else None,
+                "passes_shape": lot.passes_shape if lot.is_residential else None,
+                "passes_buildable": lot.passes_buildable if lot.is_residential else None,
+                "passes_service": lot.passes_service if lot.is_residential else None,
                 "constraint_conflicts": lot.constraint_conflicts,
                 "warnings": lot.warnings,
             }
@@ -115,9 +115,19 @@ def export_geojson(result: LayoutResult, path: str = None) -> dict:
             "name": result.name,
             "pattern": result.pattern.value,
             "total_lots": result.total_lots,
+            "residential_lots": len(result.residential_lots),
+            "remainder_lots": len(result.remainder_lots),
             "passing_lots": result.passing_lots,
             "failed_lots": result.failed_lots,
-            "score": result.score.total_score,
+            "gross_area_sqm": round(result.gross_area, 1),
+            "road_area_sqm": round(result.road_area, 1),
+            "constraint_area_sqm": round(result.constraint_area, 1),
+            "passing_lot_area_sqm": round(result.passing_lot_area, 1),
+            "failing_lot_area_sqm": round(result.failing_lot_area, 1),
+            "remainder_area_sqm": round(result.remainder_area, 1),
+            "saleable_land_pct": round(result.saleable_land_pct, 1),
+            "developable_used_pct": round(result.developable_used_pct, 1),
+            "score": round(result.score.total_score, 1),
         }
     }
 
@@ -139,6 +149,7 @@ def export_dxf(result: LayoutResult, path: str = None) -> str:
     - ROAD_CL: road centerlines
     - FRONTAGE: frontage lines
     - BUILDABLE: buildable envelopes
+    - REMAINDER: remainder lot boundaries (yellow dashed)
     """
     import ezdxf
     from ezdxf.enums import TextEntityAlignment
@@ -154,20 +165,24 @@ def export_dxf(result: LayoutResult, path: str = None) -> str:
         ('ROAD_CL', 3),       # Green
         ('FRONTAGE', 6),      # Magenta
         ('BUILDABLE', 2),     # Yellow
-        ('PARCEL', 8),         # Dark grey
+        ('PARCEL', 8),        # Dark grey
+        ('REMAINDER', 40),    # Orange
     ]:
         doc.layers.add(name=layer_name, color=color)
 
     # Lot boundaries and labels
     for lot in result.lots:
         coords = list(lot.geometry.exterior.coords)
-        msp.add_lwpolyline(coords, close=True, dxfattribs={'layer': 'LOTS'})
+        layer = 'REMAINDER' if lot.lot_type == LotType.REMAINDER else 'LOTS'
+        msp.add_lwpolyline(coords, close=True, dxfattribs={'layer': layer})
 
         # Lot number at centroid
         centroid = lot.geometry.centroid
         label = f"L{lot.id}"
-        if not lot.passes_all:
+        if lot.is_residential and not lot.passes_all:
             label += " ✗"
+        elif lot.lot_type == LotType.REMAINDER:
+            label += " R"
         msp.add_text(label, dxfattribs={
             'layer': 'LOT_NUMBERS',
             'height': 2.0,
@@ -200,7 +215,9 @@ def export_dxf(result: LayoutResult, path: str = None) -> str:
         doc.saveas(path)
 
     # Return summary text
-    return f"DXF exported: {len(result.lots)} lots, {len(result.roads)} roads"
+    res_count = len(result.residential_lots)
+    rem_count = len(result.remainder_lots)
+    return f"DXF exported: {res_count} residential lots, {rem_count} remainders, {len(result.roads)} roads"
 
 
 def export_summary(results: list[LayoutResult]) -> str:
@@ -208,14 +225,17 @@ def export_summary(results: list[LayoutResult]) -> str:
     lines = ["═" * 70, "SUBDIVISION LAYOUT COMPARISON", "═" * 70, ""]
 
     # Header
-    lines.append(f"{'Option':<10} {'Pattern':<16} {'Lots':>5} {'Pass':>5} {'Fail':>5} "
-                 f"{'Road(m)':>8} {'Sale%':>6} {'Score':>7}")
+    lines.append(
+        f"{'Option':<10} {'Pattern':<16} {'Res':>4} {'Pass':>4} {'Fail':>4} "
+        f"{'Rem':>4} {'Road(m)':>8} {'Sale%':>6} {'Dev%':>5} {'Score':>7}"
+    )
     lines.append("─" * 70)
 
     for r in results:
         lines.append(
-            f"{r.name:<10} {r.pattern.value:<16} {r.total_lots:>5} {r.passing_lots:>5} "
-            f"{r.failed_lots:>5} {r.total_road_length:>8.0f} {r.saleable_land_pct:>5.0f}% "
+            f"{r.name:<10} {r.pattern.value:<16} {len(r.residential_lots):>4} {r.passing_lots:>4} "
+            f"{r.failed_lots:>4} {len(r.remainder_lots):>4} {r.total_road_length:>8.0f} "
+            f"{r.saleable_land_pct:>5.1f}% {r.developable_used_pct:>4.1f}% "
             f"{r.score.total_score:>7.1f}"
         )
 

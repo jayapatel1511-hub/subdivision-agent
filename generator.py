@@ -9,6 +9,7 @@ The algorithm is simple:
 2. For each road, compute the ROW polygon and subtract from buildable area
 3. Carve lots along each road frontage using frontage-first slicing
 4. Check each lot for compliance
+5. Merge tiny remainder slivers into adjacent lots where safe
 """
 
 from __future__ import annotations
@@ -23,8 +24,9 @@ from shapely import affinity
 from models import (
     Parcel, LayoutRules, LayoutResult, Lot, RoadSegment, LayoutScore,
     RoadPattern, LotType, LayoutWarning, WarningLevel, ServiceType,
+    compactness, poly_area, poly_union, poly_difference, poly_buffer,
+    frontage_length, minimum_rotated_rectangle_area,
 )
-
 
 class LayoutGenerator:
     """Generate subdivision layout options from a parcel + rules."""
@@ -53,12 +55,7 @@ class LayoutGenerator:
 
     def _road_from_access(self, access: tuple[float, float, float, float],
                           length: float) -> LineString:
-        """Generate a road centerline from an access point and direction.
-
-        Args:
-            access: (x, y, dx, dy) — start point and unit direction into parcel
-            length: Road length in metres
-        """
+        """Generate a road centerline from an access point and direction."""
         x, y, dx, dy = access
         return LineString([(x, y), (x + dx * length, y + dy * length)])
 
@@ -87,9 +84,7 @@ class LayoutGenerator:
         if clipped.is_empty or clipped.length < 10:
             return []
 
-        # Convert MultiLineString to LineString if needed
         if isinstance(clipped, MultiLineString):
-            # Take the longest segment
             clipped = max(clipped.geoms, key=lambda g: g.length)
 
         if not isinstance(clipped, LineString):
@@ -115,20 +110,14 @@ class LayoutGenerator:
     def _generate_loop_road(self, length: float = None) -> list[RoadSegment]:
         """Loop road: two access points connected through the parcel."""
         if len(self.parcel.access_points) < 2:
-            # Fallback: single road with a loop at the end
             return self._generate_cul_de_sac(length)
 
         a1 = self.parcel.access_points[0]
         a2 = self.parcel.access_points[1]
-
-        # Create two roads from the two access points
         p1 = Point(a1.point)
         p2 = Point(a2.point)
 
-        # Direct connection
         centerline = LineString([p1, p2])
-
-        # Clip to parcel
         clipped = centerline.intersection(self.parcel.geometry)
         if clipped.is_empty or clipped.length < 10:
             return self._generate_single_road(length)
@@ -155,16 +144,12 @@ class LayoutGenerator:
         if not main_roads:
             return []
 
-        # Add a branch at the midpoint of the main road
         main = main_roads[0]
         mid_point = main.centerline.interpolate(0.5, normalized=True)
 
-        # Perpendicular direction
         dx, dy = self.parcel.access_points[0].direction
-        # Rotate 90 degrees
         px, py = -dy, dx
 
-        # Branch length: ~40% of parcel width
         bounds = self.parcel.geometry.bounds
         branch_length = min(bounds[2] - bounds[0], bounds[3] - bounds[1]) * 0.35
 
@@ -173,14 +158,12 @@ class LayoutGenerator:
             (mid_point.x + px * branch_length, mid_point.y + py * branch_length),
         ])
 
-        # Clip to parcel
         clipped = branch_centerline.intersection(self.parcel.geometry)
         if clipped.is_empty or clipped.length < 10:
             return main_roads
 
         if isinstance(clipped, MultiLineString):
             clipped = max(clipped.geoms, key=lambda g: g.length)
-
         if not isinstance(clipped, LineString):
             return main_roads
 
@@ -201,18 +184,14 @@ class LayoutGenerator:
         main = main_roads[0]
         roads = list(main_roads)
 
-        # Add 2-3 branches along the main road
         bounds = self.parcel.geometry.bounds
         branch_length = min(bounds[2] - bounds[0], bounds[3] - bounds[1]) * 0.30
 
         dx, dy = self.parcel.access_points[0].direction
-        px, py = -dy, dx  # perpendicular
+        px, py = -dy, dx
 
-        # Branch at 1/3 and 2/3 along the main road
         for frac in [0.33, 0.66]:
             point = main.centerline.interpolate(frac, normalized=True)
-
-            # Branch in both perpendicular directions
             for direction in [1, -1]:
                 branch = LineString([
                     (point.x, point.y),
@@ -257,7 +236,6 @@ class LayoutGenerator:
         sides = ["left", "right"] if road_side == "both" else [road_side]
 
         for side in sides:
-            # Create frontage line (offset from centerline by half ROW)
             offset_dist = row_half + 0.5
             if side == "right":
                 frontage_line = centerline.offset_curve(offset_dist)
@@ -279,17 +257,14 @@ class LayoutGenerator:
                 start_frac = i / num_columns
                 end_frac = (i + 1) / num_columns
 
-                # Get the frontage segment for this column
                 frontage_seg = substring(frontage_line, start_frac * frontage_length,
                                           end_frac * frontage_length)
 
                 if frontage_seg.length < self.rules.min_frontage * 0.9:
                     continue
 
-                # Compute depth direction: perpendicular to the frontage, pointing
-                # away from the road and into the developable area.
-                # We determine which perpendicular direction points away from the road
-                # by checking which one moves the midpoint further from the road centerline.
+                # Compute depth direction: perpendicular to the frontage,
+                # pointing away from the road toward the parcel interior.
                 start_point = Point(frontage_seg.coords[0])
                 end_point = Point(frontage_seg.coords[-1])
 
@@ -305,7 +280,7 @@ class LayoutGenerator:
                 perp_b_dx = frontage_dy / frontage_len
                 perp_b_dy = -frontage_dx / frontage_len
 
-                # Pick the one that moves the segment midpoint further from the road centerline
+                # Pick the direction that moves the midpoint further from the road centerline
                 seg_mid = frontage_seg.interpolate(0.5, normalized=True)
                 road_near = road.centerline.interpolate(
                     road.centerline.project(seg_mid)
@@ -325,7 +300,7 @@ class LayoutGenerator:
                     depth_dx = perp_b_dx
                     depth_dy = perp_b_dy
 
-                # Determine how deep we can go by ray-casting from the midpoint
+                # Ray-cast from midpoint to find available depth
                 mid_point = frontage_seg.interpolate(0.5, normalized=True)
                 ray_length = max(developable.bounds[3] - developable.bounds[1],
                                  developable.bounds[2] - developable.bounds[0])
@@ -343,7 +318,7 @@ class LayoutGenerator:
                 else:
                     available_depth = self.rules.min_depth
 
-                # Subdivide the column into depth rows
+                # Subdivide column into depth rows
                 target_depth = self.rules.lot_depth_target
                 num_rows = max(1, int(available_depth / target_depth))
 
@@ -353,26 +328,21 @@ class LayoutGenerator:
                     current_depth = depth_end - depth_start
 
                     if current_depth < self.rules.min_depth * 0.8:
-                        # Last row too shallow — merge with previous row
                         if row == num_rows - 1 and lots and depth_start > 0:
-                            # Skip this row; it'll be handled as a wider previous lot
                             continue
                         continue
 
-                    # Build lot polygon: frontage edge + back edge
+                    # Build lot polygon from frontage + depth offset
                     coords = list(frontage_seg.coords)
                     lot_poly_coords = list(coords)
 
-                    # Offset frontage by current_depth for the back edge
                     for x, y in reversed(coords):
                         lot_poly_coords.append((
                             x + depth_dx * current_depth,
                             y + depth_dy * current_depth,
                         ))
 
-                    # If not the first row, also offset the front edge by depth_start
                     if depth_start > 0:
-                        # Replace front edge with offset version
                         back_coords = [(x + depth_dx * depth_start, y + depth_dy * depth_start)
                                        for x, y in coords]
                         far_back_coords = [(x + depth_dx * depth_end, y + depth_dy * depth_end)
@@ -381,7 +351,6 @@ class LayoutGenerator:
 
                     lot_poly = Polygon(lot_poly_coords)
 
-                    # Clip to developable area
                     if developable.is_empty:
                         continue
 
@@ -399,16 +368,14 @@ class LayoutGenerator:
                     if clipped.area < self.rules.min_lot_area * 0.8:
                         continue
 
-                    # Determine lot type
-                    lot_type = LotType.REGULAR
+                    # Classify lot type
+                    lot_type = LotType.RESIDENTIAL
                     if i == 0 or i == num_columns - 1:
                         lot_type = LotType.CORNER
 
-                    # Check shape quality (compactness)
-                    perimeter = clipped.length
-                    area = clipped.area
-                    shape_quality = (4 * math.pi * area) / (perimeter ** 2) if perimeter > 0 else 0
-                    if shape_quality < 0.3:
+                    # Check shape quality
+                    shape_q = compactness(clipped)
+                    if shape_q < 0.3:
                         lot_type = LotType.IRREGULAR
 
                     lot = Lot(
@@ -427,10 +394,7 @@ class LayoutGenerator:
     def _carve_lots_along_boundary(self, boundary_line: LineString,
                                      developable: Polygon,
                                      direction: str = "inward") -> list[Lot]:
-        """Carve lots along a parcel boundary (for existing-road patterns).
-
-        Used when lots front an existing road and no new internal road is needed.
-        """
+        """Carve lots along a parcel boundary (for existing-road patterns)."""
         lots = []
         lot_width = self.rules.lot_width_target
         frontage_length = boundary_line.length
@@ -483,13 +447,11 @@ class LayoutGenerator:
             if clipped.area < self.rules.min_lot_area * 0.8:
                 continue
 
-            lot_type = LotType.REGULAR
+            lot_type = LotType.RESIDENTIAL
             if i == 0 or i == num_lots - 1:
                 lot_type = LotType.CORNER
-            perimeter = clipped.length
-            area = clipped.area
-            shape_quality = (4 * math.pi * area) / (perimeter ** 2) if perimeter > 0 else 0
-            if shape_quality < 0.3:
+            shape_q = compactness(clipped)
+            if shape_q < 0.3:
                 lot_type = LotType.IRREGULAR
 
             lot = Lot(
@@ -504,6 +466,73 @@ class LayoutGenerator:
             lots.append(lot)
 
         return lots
+
+    # ── Sliver Merge ─────────────────────────────────────────────────────
+
+    def _merge_slivers(self, lots: list[Lot], developable: Polygon,
+                        target_area: float) -> list[Lot]:
+        """Merge tiny remainder slivers into adjacent residential lots when safe.
+
+        A sliver is a remainder with area < 10% of target_lot_area.
+        It can be merged into an adjacent lot if:
+        1. The remainder touches exactly one residential lot
+        2. The merged lot still has reasonable shape (compactness >= 0.25)
+        3. The merged lot doesn't exceed 2× target lot area
+        """
+        sliver_threshold = target_area * 0.10
+
+        # Identify slivers (small remainders)
+        remainders = [l for l in lots if l.lot_type == LotType.REMAINDER]
+        residential = [l for l in lots if l.is_residential]
+
+        if not remainders or not residential:
+            return lots
+
+        merged = set()  # indices of remainders that got merged
+        for ri, rem in enumerate(remainders):
+            if rem.area >= sliver_threshold:
+                continue  # not a sliver, leave it alone
+
+            # Find adjacent residential lots
+            adjacent = []
+            for li, res_lot in enumerate(residential):
+                if rem.geometry.touches(res_lot.geometry) or (
+                    rem.geometry.distance(res_lot.geometry) < 0.5
+                ):
+                    adjacent.append((li, res_lot))
+
+            # Only merge if touching exactly one residential lot
+            if len(adjacent) != 1:
+                continue
+
+            li, res_lot = adjacent[0]
+            merged_poly = res_lot.geometry.union(rem.geometry)
+
+            # Handle MultiPolygon — take largest
+            if isinstance(merged_poly, MultiPolygon):
+                merged_poly = max(merged_poly.geoms, key=lambda g: g.area)
+
+            if not isinstance(merged_poly, Polygon):
+                continue
+
+            # Check merged lot quality
+            merged_compactness = compactness(merged_poly)
+            merged_area = merged_poly.area
+
+            if merged_compactness < 0.25:
+                continue  # would worsen shape too much
+            if merged_area > target_area * 2.0:
+                continue  # would be too large
+
+            # Merge is safe — update the residential lot
+            res_lot.geometry = merged_poly
+            res_lot.compute_properties()
+            merged.add(ri)
+
+        # Remove merged remainders
+        new_lots = [l for l in lots if l.lot_type != LotType.REMAINDER]
+        new_lots.extend([r for ri, r in enumerate(remainders) if ri not in merged])
+        return new_lots
 
     # ── Layout Generation ─────────────────────────────────────────────────
 
@@ -542,7 +571,6 @@ class LayoutGenerator:
         if pattern == RoadPattern.EXISTING_ROAD:
             # No new road — carve lots along existing boundary
             roads = []
-            # Use the front boundary (nearest to access point) as frontage
             if self.parcel.access_points:
                 boundary = self._get_front_boundary()
                 if boundary:
@@ -591,44 +619,52 @@ class LayoutGenerator:
                 lots = self._carve_lots_along_road(road, developable)
                 all_lots.extend(lots)
 
-            # Try to fill remaining developable area with boundary lots
+            # Find remaining developable area and create remainder lots
             remaining = developable
             for lot in all_lots:
                 remaining = remaining.difference(lot.geometry)
 
-            # If there's significant remaining area, try to create remainder lots
             if isinstance(remaining, MultiPolygon):
                 for geom in remaining.geoms:
                     if geom.area >= self.rules.min_lot_area and isinstance(geom, Polygon):
-                        # Try to create a remainder lot
+                        # Try to create a remainder lot with a rough frontage
+                        coords = list(geom.exterior.coords)
+                        frontage_coords = coords[:2] if len(coords) >= 2 else coords
+                        frontage_line = LineString(frontage_coords)
                         lot = Lot(
                             id=self._next_lot_id(),
                             geometry=geom,
-                            frontage_line=LineString(list(geom.exterior.coords[:2])),
+                            frontage_line=frontage_line,
                             lot_type=LotType.REMAINDER,
                         )
                         lot.compute_properties()
                         all_lots.append(lot)
             elif isinstance(remaining, Polygon) and remaining.area >= self.rules.min_lot_area:
+                coords = list(remaining.exterior.coords)
+                frontage_coords = coords[:2] if len(coords) >= 2 else coords
+                frontage_line = LineString(frontage_coords)
                 lot = Lot(
                     id=self._next_lot_id(),
                     geometry=remaining,
-                    frontage_line=LineString(list(remaining.exterior.coords[:2])),
+                    frontage_line=frontage_line,
                     lot_type=LotType.REMAINDER,
                 )
                 lot.compute_properties()
                 all_lots.append(lot)
 
+            # Sliver merge: absorb tiny remainders into adjacent lots
+            all_lots = self._merge_slivers(all_lots, developable,
+                                            self.rules.lot_width_target * self.rules.lot_depth_target)
+
             result.lots = all_lots
             result.roads = roads
 
-        # Compute final metrics
+        # Compute final area metrics
+        # NOTE: saleable_land_pct is computed AFTER checker runs via compute_area_metrics()
+        # Here we only compute the geometric metrics we can determine at generation time
         net_area = result.gross_area - result.area_lost_to_constraints - result.area_lost_to_row
         result.net_usable_area = net_area
         result.remaining_developable = net_area - sum(l.area for l in result.lots)
-
-        lot_area_total = sum(l.area for l in result.lots if l.passes_all)
-        result.saleable_land_pct = (lot_area_total / result.gross_area * 100) if result.gross_area > 0 else 0
 
         return result
 
@@ -676,7 +712,7 @@ class LayoutGenerator:
             seg_dx = coords[i+1][0] - coords[i][0]
             seg_dy = coords[i+1][1] - coords[i][1]
             dot = seg_dx * access.direction[0] + seg_dy * access.direction[1]
-            score = dist - dot * 10  # Weight facing direction
+            score = dist - dot * 10
             if score < best_score:
                 best_score = score
                 best_seg = seg

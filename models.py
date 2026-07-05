@@ -15,6 +15,86 @@ from typing import Optional
 from shapely.geometry import Polygon, MultiPolygon, LineString, Point, MultiLineString
 from shapely.ops import unary_union
 
+# ── Geometry Helpers (polygon-native) ───────────────────────────────────────
+
+def poly_area(geom) -> float:
+    """Area of a polygon or multi-polygon."""
+    if geom is None or geom.is_empty:
+        return 0.0
+    return geom.area
+
+def poly_intersects(a, b) -> bool:
+    """Do two geometries intersect?"""
+    if a is None or b is None or a.is_empty or b.is_empty:
+        return False
+    return a.intersects(b)
+
+def poly_difference(a, b):
+    """Subtract b from a. Returns None if result is empty."""
+    if a is None or b is None or a.is_empty:
+        return a
+    result = a.difference(b)
+    if result.is_empty:
+        return None
+    return result
+
+def poly_union(geoms: list):
+    """Union of multiple geometries."""
+    if not geoms:
+        return Polygon()
+    return unary_union(geoms)
+
+def poly_buffer(line, width, cap_style=2, join_style=2):
+    """Buffer a line by width (half on each side)."""
+    return line.buffer(width, cap_style=cap_style, join_style=join_style)
+
+def frontage_length(lot, road_row) -> float:
+    """Length of lot's shared boundary with the road ROW polygon."""
+    if lot is None or road_row is None or lot.is_empty or road_row.is_empty:
+        return 0.0
+    try:
+        intersection = lot.intersection(road_row)
+        if intersection.is_empty:
+            return 0.0
+        if isinstance(intersection, LineString):
+            return intersection.length
+        if isinstance(intersection, MultiLineString):
+            return sum(g.length for g in intersection.geoms)
+        # If the intersection is a polygon (lot shares area with road),
+        # the boundary of that intersection shared with the road is the frontage
+        if hasattr(intersection, 'exterior'):
+            return intersection.exterior.length / 2  # rough approximation
+        return 0.0
+    except Exception:
+        return 0.0
+
+def compactness(poly) -> float:
+    """4πA/P² — 1.0 = circle, ~0.787 = square, <0.35 = noodle."""
+    if poly is None or poly.is_empty:
+        return 0.0
+    area = poly.area
+    perimeter = poly.length
+    if perimeter <= 0:
+        return 0.0
+    return (4 * 3.14159265 * area) / (perimeter ** 2)
+
+def split_polygon(polygon, line) -> list[Polygon]:
+    """Split a polygon by a line, returning the resulting pieces."""
+    try:
+        result = split(polygon, line)
+        polys = []
+        for geom in result.geoms:
+            if isinstance(geom, Polygon) and not geom.is_empty:
+                polys.append(geom)
+        return polys
+    except Exception:
+        return [polygon] if isinstance(polygon, Polygon) else []
+
+def minimum_rotated_rectangle_area(poly) -> float:
+    """Area of the minimum rotated rectangle that bounds this polygon."""
+    if poly is None or poly.is_empty:
+        return 0.0
+    return poly.minimum_rotated_rectangle.area
 
 # ── Enums ──────────────────────────────────────────────────────────────────
 
@@ -24,7 +104,6 @@ class ServiceType(str, Enum):
     WELL_SEPTIC = "well_septic"
     FUTURE_MUNICIPAL = "future_municipal"
     UNKNOWN = "unknown"
-
 
 class RoadPattern(str, Enum):
     EXISTING_ROAD = "existing_road"        # lots along existing road, no new road
@@ -36,27 +115,25 @@ class RoadPattern(str, Enum):
     CLUSTER = "cluster"                     # cluster layout around common space
     LARGE_LOT_RURAL = "large_lot_rural"     # rural, well-separated lots
 
-
 class LayoutGoal(str, Enum):
     MAXIMIZE_LOTS = "maximize_lots"
     MAXIMIZE_QUALITY = "maximize_quality"
     MAXIMIZE_LOTS_WITH_GOOD_QUALITY = "maximize_lots_with_good_quality"
     PRESERVE_AREA = "preserve_area"
 
-
 class LotType(str, Enum):
-    REGULAR = "regular"
-    CORNER = "corner"
-    FLAG = "flag"
-    REMAINDER = "remainder"
-    IRREGULAR = "irregular"
-
+    RESIDENTIAL = "residential"     # A normal lot carved from developable area
+    CORNER = "corner"               # Corner lot (frontage on two roads)
+    REMAINDER = "remainder"          # Leftover developable area not in a generated lot
+    ROAD_ROW = "road_row"           # Road right-of-way polygon (not a lot)
+    CONSTRAINT = "constraint"        # Constraint area polygon (not a lot)
+    OPEN_SPACE = "open_space"       # Dedicated open space (not a lot)
+    IRREGULAR = "irregular"         # Lot that fails shape quality check but is residential
 
 class WarningLevel(str, Enum):
     INFO = "info"
     CAUTION = "caution"
     FAIL = "fail"
-
 
 # ── Core Geometric Objects ──────────────────────────────────────────────────
 
@@ -67,7 +144,6 @@ class AccessPoint:
     direction: tuple[float, float]    # unit vector pointing into parcel
     road_name: str = ""
 
-
 @dataclass
 class ConstraintArea:
     """A no-build or restricted-build zone on the parcel."""
@@ -76,7 +152,6 @@ class ConstraintArea:
     deductible: bool = True           # Does this reduce buildable area?
     buffer_m: float = 0.0             # Buffer width to apply around geometry
     source: str = ""                  # Regulation reference
-
 
 @dataclass
 class RoadSegment:
@@ -101,7 +176,6 @@ class RoadSegment:
     def area(self) -> float:
         return self.row_polygon.area
 
-
 @dataclass
 class Lot:
     """A single lot in a subdivision layout."""
@@ -109,7 +183,7 @@ class Lot:
     geometry: Polygon
     frontage_line: LineString           # The road-frontage edge
     road_segment_id: int = -1           # Which road serves this lot
-    lot_type: LotType = LotType.REGULAR
+    lot_type: LotType = LotType.RESIDENTIAL
     access_point: Optional[Point] = None
 
     # Computed properties (filled by checker)
@@ -133,6 +207,8 @@ class Lot:
     constraint_conflicts: list[str] = field(default_factory=list)
     warnings: list[str] = field(default_factory=list)
 
+    shape_quality: float = 0.0   # 4πA/P² — 1.0 = circle, <0.5 = noodle
+
     def compute_properties(self):
         """Fill in geometric properties from the polygon."""
         self.area = self.geometry.area
@@ -146,15 +222,18 @@ class Lot:
         # width: minimum width of the lot
         bounds = self.geometry.bounds
         self.width_min = min(bounds[2] - bounds[0], bounds[3] - bounds[1])
-        # shape quality: compactness ratio (4π × area / perimeter²) — 1.0 = circle
-        perimeter = self.geometry.length
-        if perimeter > 0:
-            self.shape_quality = (4 * 3.14159 * self.area) / (perimeter ** 2)
-        else:
-            self.shape_quality = 0.0
+        # shape quality: compactness ratio (4π × area / perimeter²)
+        self.shape_quality = compactness(self.geometry)
 
-    shape_quality: float = 0.0   # 4πA/P² — 1.0 = circle, <0.5 = noodle
+    @property
+    def is_residential(self) -> bool:
+        """Is this a lot type that should be checked as a residential lot?"""
+        return self.lot_type in (LotType.RESIDENTIAL, LotType.CORNER, LotType.IRREGULAR)
 
+    @property
+    def is_infrastructure(self) -> bool:
+        """Is this an infrastructure element (road, constraint, open space)?"""
+        return self.lot_type in (LotType.ROAD_ROW, LotType.CONSTRAINT, LotType.OPEN_SPACE)
 
 # ── Configuration Objects ───────────────────────────────────────────────────
 
@@ -273,14 +352,12 @@ class LayoutScore:
     total_score: float = 0.0
     explanation: str = ""
 
-
 @dataclass
 class LayoutWarning:
     """A warning about a specific lot or layout issue."""
     level: WarningLevel
     message: str
     lot_id: Optional[int] = None
-
 
 @dataclass
 class LayoutResult:
@@ -293,33 +370,58 @@ class LayoutResult:
     score: LayoutScore = field(default_factory=LayoutScore)
     warnings: list[LayoutWarning] = field(default_factory=list)
 
-    # Parcel-level metrics
+    # Parcel-level area metrics
     gross_area: float = 0.0
     net_usable_area: float = 0.0
     area_lost_to_row: float = 0.0
     area_lost_to_constraints: float = 0.0
     remaining_developable: float = 0.0
+
+    # Lot-level area breakdown (filled after checking)
+    road_area: float = 0.0
+    constraint_area: float = 0.0
+    passing_lot_area: float = 0.0
+    failing_lot_area: float = 0.0
+    remainder_area: float = 0.0
     saleable_land_pct: float = 0.0
+    developable_used_pct: float = 0.0
 
     @property
     def total_lots(self) -> int:
         return len(self.lots)
 
     @property
+    def residential_lots(self) -> list[Lot]:
+        """Lots that are residential type (checked for compliance)."""
+        return [l for l in self.lots if l.is_residential]
+
+    @property
+    def remainder_lots(self) -> list[Lot]:
+        """Leftover developable area lots (not checked for compliance)."""
+        return [l for l in self.lots if l.lot_type == LotType.REMAINDER]
+
+    @property
     def passing_lots(self) -> int:
-        return sum(1 for lot in self.lots if lot.passes_all)
+        return sum(1 for l in self.lots if l.is_residential and l.passes_all)
 
     @property
     def failed_lots(self) -> int:
-        return self.total_lots - self.passing_lots
+        """Residential lots that fail compliance (NOT remainders)."""
+        return sum(1 for l in self.lots if l.is_residential and not l.passes_all)
 
     @property
     def avg_lot_area(self) -> float:
-        return sum(l.area for l in self.lots) / max(len(self.lots), 1)
+        residential = self.residential_lots
+        if not residential:
+            return 0.0
+        return sum(l.area for l in residential) / len(residential)
 
     @property
     def min_lot_area(self) -> float:
-        return min((l.area for l in self.lots), default=0.0)
+        residential = self.residential_lots
+        if not residential:
+            return 0.0
+        return min(l.area for l in residential)
 
     @property
     def total_road_length(self) -> float:
@@ -331,26 +433,59 @@ class LayoutResult:
 
     @property
     def irregular_lot_count(self) -> int:
-        return sum(1 for l in self.lots if l.lot_type in (LotType.FLAG, LotType.IRREGULAR, LotType.REMAINDER))
+        return sum(1 for l in self.lots if l.lot_type == LotType.IRREGULAR)
 
     @property
     def lots_per_road_metre(self) -> float:
         total_road = self.total_road_length
-        return len(self.lots) / total_road if total_road > 0 else 0.0
+        return len(self.residential_lots) / total_road if total_road > 0 else 0.0
+
+    def compute_area_metrics(self):
+        """Fill in all area metrics from lot polygons. Call AFTER checker runs."""
+        # Road area
+        self.road_area = sum(r.area for r in self.roads)
+
+        # Constraint area
+        self.constraint_area = self.area_lost_to_constraints
+
+        # Residential lot areas (passing vs failing)
+        self.passing_lot_area = sum(l.area for l in self.lots if l.is_residential and l.passes_all)
+        self.failing_lot_area = sum(l.area for l in self.lots if l.is_residential and not l.passes_all)
+
+        # Remainder area
+        self.remainder_area = sum(l.area for l in self.lots if l.lot_type == LotType.REMAINDER)
+
+        # Saleable land % = passing residential lot area / gross area
+        if self.gross_area > 0:
+            self.saleable_land_pct = (self.passing_lot_area / self.gross_area) * 100
+        else:
+            self.saleable_land_pct = 0.0
+
+        # Developable used % = (passing + failing residential area) / (gross - constraint - road)
+        net = self.gross_area - self.constraint_area - self.road_area
+        if net > 0:
+            self.developable_used_pct = ((self.passing_lot_area + self.failing_lot_area) / net) * 100
+        else:
+            self.developable_used_pct = 0.0
 
     def summary(self) -> str:
         """Generate a human-readable summary of this layout option."""
         lines = [
-            f"Option {self.name}: {self.total_lots} lots ({self.passing_lots} passing, {self.failed_lots} failed)",
+            f"Option {self.name}: {self.passing_lots}/{len(self.residential_lots)} residential lots passing",
             f"  Pattern: {self.pattern.value}",
             f"  Road length: {self.total_road_length:.0f} m",
-            f"  Saleable land: {self.saleable_land_pct:.0f}%",
-            f"  Avg lot area: {self.avg_lot_area:.0f} m²",
-            f"  Min lot area: {self.min_lot_area:.0f} m²",
+            f"  Saleable land: {self.saleable_land_pct:.1f}% ({self.passing_lot_area:.0f} m²)",
+            f"  Developable used: {self.developable_used_pct:.1f}%",
+            f"  Avg lot area: {self.avg_lot_area:.0f} m² (residential)",
+            f"  Min lot area: {self.min_lot_area:.0f} m² (residential)",
             f"  Irregular lots: {self.irregular_lot_count}",
             f"  Lots per road metre: {self.lots_per_road_metre:.2f}",
             f"  Score: {self.score.total_score:.1f}",
         ]
+        if self.remainder_lots:
+            lines.append(f"  Remainder area: {self.remainder_area:.0f} m² ({len(self.remainder_lots)} pieces, not counted in yield)")
+        if self.failed_lots > 0:
+            lines.append(f"  Failed residential: {self.failed_lots} lots ({self.failing_lot_area:.0f} m²)")
         if self.warnings:
             fail_warnings = [w for w in self.warnings if w.level == WarningLevel.FAIL]
             caution_warnings = [w for w in self.warnings if w.level == WarningLevel.CAUTION]
@@ -442,6 +577,7 @@ def layout_result_to_dict(result: LayoutResult) -> dict:
             "passes_shape": lot.passes_shape,
             "passes_buildable": lot.passes_buildable,
             "passes_service": lot.passes_service,
+            "is_residential": lot.is_residential,
             "constraint_conflicts": lot.constraint_conflicts,
             "warnings": lot.warnings,
         })
@@ -463,13 +599,22 @@ def layout_result_to_dict(result: LayoutResult) -> dict:
         "name": result.name,
         "pattern": result.pattern.value,
         "total_lots": result.total_lots,
+        "residential_lots": len(result.residential_lots),
+        "remainder_lots": len(result.remainder_lots),
         "passing_lots": result.passing_lots,
         "failed_lots": result.failed_lots,
         "avg_lot_area": round(result.avg_lot_area, 1),
         "min_lot_area": round(result.min_lot_area, 1),
         "total_road_length": round(result.total_road_length, 1),
         "total_road_area": round(result.total_road_area, 1),
+        "gross_area": round(result.gross_area, 1),
+        "road_area": round(result.road_area, 1),
+        "constraint_area": round(result.constraint_area, 1),
+        "passing_lot_area": round(result.passing_lot_area, 1),
+        "failing_lot_area": round(result.failing_lot_area, 1),
+        "remainder_area": round(result.remainder_area, 1),
         "saleable_land_pct": round(result.saleable_land_pct, 1),
+        "developable_used_pct": round(result.developable_used_pct, 1),
         "lots_per_road_metre": round(result.lots_per_road_metre, 2),
         "irregular_lot_count": result.irregular_lot_count,
         "score": {
@@ -498,4 +643,3 @@ def layout_result_to_json(result: LayoutResult, path: str = None) -> str:
     if path:
         with open(path, 'w') as f:
             f.write(json_str)
-    return json_str
