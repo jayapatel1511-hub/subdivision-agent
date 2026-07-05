@@ -21,6 +21,7 @@ from constraints import ConstraintEngine
 from generator import LayoutGenerator
 from checker import LotChecker, LayoutScorer
 from export import export_geojson, export_dxf, export_summary
+from export_qgis import export_qgis
 from intake_geojson import load_geojson_parcel
 
 
@@ -122,7 +123,7 @@ def main():
     parser.add_argument("--export", default=None,
                         help="Export prefix for output files (e.g. 'output/layout')")
     parser.add_argument("--format", default="geojson",
-                        choices=["geojson", "dxf", "json", "all"],
+                        choices=["geojson", "dxf", "json", "qgis", "all"],
                         help="Export format")
     parser.add_argument("--geojson", default=None,
                         help="Path to GeoJSON file for irregular parcel input")
@@ -229,6 +230,10 @@ def main():
                 path = f"{prefix}_full.json"
                 layout_result_to_json(result, path)
                 print(f"  Exported: {path}")
+            if args.format in ("qgis", "all"):
+                path = f"{prefix}_qgis"
+                export_qgis(result, path, parcel=parcel)
+                print(f"  Exported: {path}/")
 
 
 if __name__ == "__main__":
