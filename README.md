@@ -97,6 +97,7 @@ Lots are labeled `L1 ✓` / `L3 ✗` / `R45` directly on the map. Open the `.qgz
 | `export.py` | 266 | GeoJSON + DXF export |
 | `export_qgis.py` | 440 | QGIS project export (per-layer GeoJSON + QML styles + .qgz) |
 | `intake.py` | 126 | Interactive CLI input (rectangle path) |
+| `CONSTRAINT_TAXONOMY.md` | — | Constraint classification reference doc |
 | `data/zones/hrm/` | — | CSV files for R-1, R-2, R-3, C-1 zones |
 
 **Total:** 4,680 lines of Python across 11 source files.
@@ -218,8 +219,20 @@ subdivision-agent/
 │   ├── irregular_v1_brainstorm.md
 │   └── irregular_v1_brainstorm_glm52.md
 ├── RECTANGLE_V2_SUMMARY.md
-└── IRREGULAR_V1_SUMMARY.md
+├── IRREGULAR_V1_SUMMARY.md
+└── CONSTRAINT_TAXONOMY.md
 ```
+
+---
+
+## Branches
+
+| Branch | Purpose |
+|---|---|
+| `main` | Stable release branch. Always passes tests; tagged commits are release-ready. |
+| Feature branches (e.g. `irregular-v1`, `qgis-export`) | Development branches for new features. Merged into `main` once the feature is complete and tests pass, then deleted. |
+
+**Strategy:** Single stable `main` branch + short-lived feature branches. No long-lived dev branch. Feature branches are deleted (local + remote) once merged.
 
 ---
 
