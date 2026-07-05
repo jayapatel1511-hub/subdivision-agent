@@ -1,0 +1,13 @@
+zone_code,zone_name,min_lot_area_sqm,min_lot_frontage_m,min_lot_depth_m,max_density_units_per_ha,min_rear_setback_m,min_side_setback_m,min_front_setback_m,min_flankage_setback_m,corner_lot_frontage_reduction_pct,max_lot_coverage_pct,notes
+R-1,Single Unit Dwelling,560,20,30,18,7.5,1.5,6,3,0,35,Detached single family. Well/septic may require larger lots.
+R-1a,Single Unit Dwelling (Small Lot),370,15,30,25,6,1.2,4.5,2.4,0,40,Serviced small-lot single family. Not available in all areas.
+R-2,Two Unit Dwelling,460,18,30,30,7.5,1.5,6,3,0,45,Duplex / semi-detached. Each unit lot min 230sqm if subdivided.
+R-2a,Two Unit Dwelling (Small Lot),300,15,30,35,6,1.2,4.5,2.4,0,50,Serviced small-lot duplex. Not available in all areas.
+R-3,Multiple Unit Dwelling,460,18,30,60,7.5,3,6,4.5,0,50,Townhouse / rowhouse. Density varies by site-specific agreement.
+C-1,Local Commercial,460,18,30,,6,3,0,3,0,75,Neighbourhood commercial. Residential above permitted.
+C-2,General Commercial,930,30,40,,7.5,3,0,4.5,0,75,Arterial commercial. No residential density cap if mixed-use.
+C-3,Comprehensive Development,930,30,40,,7.5,6,3,4.5,0,60,Site-specific. Requires development agreement.
+MU-1,Mixed Use Low Rise,460,18,30,50,7.5,3,3,4.5,0,55,Mixed use. Ground floor commercial encouraged.
+MU-2,Mixed Use Mid Rise,930,30,40,75,7.5,6,3,4.5,0,65,Mixed use mid-rise. Height up to 14m.
+I-1,Industrial Light,1850,30,50,,7.5,6,6,6,0,60,Light industrial. No residential.
+I-2,Industrial General,3700,45,60,,10,6,10,6,0,50,Heavy industrial. Large setbacks from residential zones.

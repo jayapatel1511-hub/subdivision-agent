@@ -1,0 +1,7 @@
+road_type,right_of_way_m,carriageway_m,cul_de_sac_bulb_radius_m,sidewalk_required,sidewalk_sides,sidewalk_width_m,min_grade_pct,max_grade_pct,horizontal_curve_min_radius_m,cul_de_sac_max_length_m,max_lot_frontage_no_cul_de_sac_m,notes
+local_residential,16,8,15,yes,one,1.5,0.5,8,30,60,200,Standard residential local road. 16m ROW, 8m carriageway, 1.5m sidewalk one side.
+local_residential_no_sidewalk,14,8,15,no,,1.5,0.5,8,30,60,200,Rural local road. No sidewalk required. 14m ROW.
+collector_residential,20,10,15,yes,both,1.8,0.5,8,50,120,300,Collector road. 20m ROW, 10m carriageway, sidewalks both sides.
+arterial,30,14,,yes,both,2.0,0.5,6,100,,400,Arterial. No cul-de-sacs. 30m ROW.
+industrial,20,12,18,yes,one,1.5,0.5,8,50,100,300,Industrial local road. Wider carriageway for truck traffic.
+lane_right_of_way,6,6,,no,,,,,0,,80,Lane / utility ROW. 6m minimum width. No sidewalks.

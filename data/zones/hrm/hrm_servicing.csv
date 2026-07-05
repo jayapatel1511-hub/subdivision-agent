@@ -1,0 +1,6 @@
+servicing_type,min_lot_area_sqm,min_frontage_m,min_depth_m,septic_field_reserve_pct,well_setback_from_septic_m,well_setback_from_boundary_m,well_setback_from_building_m,well_protection_radius_m,drainage_field_length_m,drainage_field_width_m,replacement_field_required,well_min_depth_m,septic_approval_required,notes
+serviced,370,15,30,0,0,0,0,0,0,0,no,0,no,Municipal water AND sewer available. Min lot area from LUB applies. No on-site systems needed.
+serviced_water_only,460,18,30,0,15.2,6,1,30,0,0,yes,0,no,Municipal water only. Requires on-site septic. Must meet NS On-Site Sewage Disposal Regulations.
+unserviced,3700,30,60,50,15.2,6,1,30,30,15,yes,15,yes,No municipal services. Requires on-site well + septic. 50% reserve for septic replacement field. Minimum 0.37ha (3700sqm) per NS regulations.
+unserviced_bedrock,4600,30,60,50,15.2,6,1,30,30,15,yes,15,yes,Unserviced with bedrock constraints. Larger lot to accommodate raised septic fields and well isolation. Minimum 0.46ha.
+unserviced_small_lot_variance,2800,24,50,50,15.2,6,1,30,25,12,yes,15,yes,Variance possible for unserviced lots in specific communities. Requires NS Environment approval + development agreement.

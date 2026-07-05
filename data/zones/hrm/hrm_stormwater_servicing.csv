@@ -1,0 +1,22 @@
+swmf_type,min_drainage_area_ha,typical_area_pct_of_site,depth_m,side_slope,forebay_required,outfall_required,notes
+wet_detention,0.5,3_to_5,1.5_to_3,3:1,yes,yes,Most common HRM requirement. Permanent pool with forebay. 3-5% of site area.
+dry_detention,0.5,2_to_4,1_max,4:1,no,yes,Dry between storms. Less land but less effective water quality treatment.
+underground_chamber,,1_to_2,n/a,n/a,no,yes,For tight sites where surface SWMF isn't feasible. Expensive. Requires engineered design.
+bioswale,,1_to_2,0.3_to_0.6,4:1,no,no,Linear vegetated swale along road ROW. Low footprint, good for small sites.
+rain_garden,,0.5_to_1_pct_of_site,0.3_to_0.6,3:1,no,no,Small distributed LID. Not sufficient as sole SWMF for subdivisions >5 lots.
+
+storm_sewer_criteria:
+  - Required for all serviced subdivisions
+  - Minor system (pipes): 1:5 year storm
+  - Major system (overland): 1:100 year storm
+  - Halifax Water approves all storm connections
+
+open_space_dedication:
+  - HRM may require up to 10% of gross site area as park dedication (Regional Plan Policy)
+  - Can be land or cash-in-lieu at HRM's discretion
+  - Deduction from yield before lot carving
+
+tree_canopy:
+  - HRM Urban Forest Master Plan targets 40% canopy
+  - Tree protection by-law may require preservation of significant trees
+  - Not a hard deduction but affects site planning

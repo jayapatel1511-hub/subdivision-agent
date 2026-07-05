@@ -1,0 +1,17 @@
+feature_type,buffer_width_m,regulation_source,applies_to,measured_from,deductible_from_yield,notes
+watercourse_river,30,HRM LUB Part 3 Sec 3.1,all zones,ordinary high water mark,yes,River or stream with continuous flow. No development or site alteration within buffer.
+watercourse_stream_intermittent,20,HRM LUB Part 3 Sec 3.1,all zones,ordinary high water mark,yes,Intermittent stream. Buffer applies during flow season.
+wetland,30,NSECC Wetland Conservation Policy,all zones,wetland delineation boundary,yes,All wetlands including swamps, marshes, bogs, fens. Requires NSECC approval for any alteration.
+wetland_wetland_of_special_significance,60,NSECC Wetland Conservation Policy,all zones,wetland delineation boundary,yes,WSS wetlands get doubled buffer. Rare species habitat etc.
+flood_plain,0,HRM LUB Part 3 Sec 3.2,all zones,flood risk boundary,yes,No permanent structures in 1:100 year flood plain. Area still counted in parcel but deducted from buildable.
+coastal_flood,3.8,HRM LUB Part 3 Sec 3.3,coastal zones,ordinary high water mark + wave runup,yes,Climate change flood construction level. Applies to new subdivisions after 2023.
+steep_slope_15pct,5,HRM LUB Part 3 Sec 3.4,all zones,top of slope,yes,5m setback from top of slope where slope exceeds 15% over a 3m vertical drop.
+steep_slope_30pct,9,HRM LUB Part 3 Sec 3.4,all zones,top of slope,yes,9m setback for slopes exceeding 30%. May require geotechnical report.
+well_isolation_septic,15.2,NS On-Site Sewage Disposal Regs,unserviced lots,well casing,yes,Minimum isolation distance between well and septic system. Critical for unserviced subdivisions.
+well_isolation_boundary,6,NS Well Construction Regulations,unserviced lots,well casing,yes,Minimum setback from property boundary for well.
+well_isolation_building,1,NS Well Construction Regulations,unserviced lots,well casing,yes,Minimum setback from building foundation.
+well_protection_radius,30,NS Well Construction Regulations,unserviced lots,well casing,yes,30m protection radius around well. No septic or contaminant sources within this radius.
+septic_field_reserve,0,NS On-Site Sewage Disposal Regs,unserviced lots,septic tile field,yes,50% of required septic field area must be reserved for replacement field. This is THE big yield killer. Not a fixed buffer — percentage of drain field area. See hrm_servicing.csv septic_field_reserve_pct.
+endangered_species_habitat,0,NS Endangered Species Act,all zones,habitat delineation,yes,Species-specific. Buffer varies. Requires wildlife biologist assessment. Flagged for manual review.
+archaeological_sensitive,0,NS Special Places Protection Act,all zones,identified site boundary,yes,Mikmaq heritage sites, historic archaeological sites. Buffer varies. Requires screening if in known sensitive area. Flagged for manual review.
+contaminated_site,0,NS Environment Act,all zones,contamination boundary,yes,Phase I/II ESA may be required. Site remediation before subdivision approval. Buffer varies. Flagged for manual review.
