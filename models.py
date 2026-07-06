@@ -525,7 +525,7 @@ class Parcel:
     zone_code: str = ""
     municipality: str = "hrm"
     source_crs: int = 4326           # CRS the GeoJSON was in
-    working_crs: int = 2959          # CRS we compute in
+    working_crs: int = 2961          # CRS we compute in (NAD83(CSRS) / UTM 20N)
     shape: ParcelShape = ParcelShape.RECTANGLE
 
     @property
