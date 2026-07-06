@@ -321,76 +321,67 @@ class LayoutGenerator:
                 else:
                     available_depth = self.rules.min_depth
 
-                # Subdivide column into depth rows
+                # Only carve the frontage row. Deeper "rows" have no road
+                # frontage (row 0 lots sit between them and the road), so they
+                # are landlocked — creating them as RESIDENTIAL/CORNER inflated
+                # lot yield ~2x on deep parcels. Leftover depth behind the
+                # frontage row is honestly handled as REMAINDER by the
+                # remainder logic in generate_layout.
                 target_depth = self.rules.lot_depth_target
-                num_rows = max(1, int(available_depth / target_depth))
+                current_depth = min(target_depth, available_depth)
 
-                for row in range(num_rows):
-                    depth_start = row * target_depth
-                    depth_end = min((row + 1) * target_depth, available_depth)
-                    current_depth = depth_end - depth_start
+                if current_depth < self.rules.min_depth * 0.8:
+                    continue
 
-                    if current_depth < self.rules.min_depth * 0.8:
-                        if row == num_rows - 1 and lots and depth_start > 0:
-                            continue
-                        continue
+                # Build lot polygon from frontage + depth offset
+                coords = list(frontage_seg.coords)
+                lot_poly_coords = list(coords)
 
-                    # Build lot polygon from frontage + depth offset
-                    coords = list(frontage_seg.coords)
-                    lot_poly_coords = list(coords)
+                for x, y in reversed(coords):
+                    lot_poly_coords.append((
+                        x + depth_dx * current_depth,
+                        y + depth_dy * current_depth,
+                    ))
 
-                    for x, y in reversed(coords):
-                        lot_poly_coords.append((
-                            x + depth_dx * current_depth,
-                            y + depth_dy * current_depth,
-                        ))
+                lot_poly = Polygon(lot_poly_coords)
 
-                    if depth_start > 0:
-                        back_coords = [(x + depth_dx * depth_start, y + depth_dy * depth_start)
-                                       for x, y in coords]
-                        far_back_coords = [(x + depth_dx * depth_end, y + depth_dy * depth_end)
-                                           for x, y in coords]
-                        lot_poly_coords = back_coords + far_back_coords[::-1]
+                if developable.is_empty:
+                    continue
 
-                    lot_poly = Polygon(lot_poly_coords)
+                clipped = lot_poly.intersection(developable)
+                if clipped.is_empty:
+                    continue
 
-                    if developable.is_empty:
-                        continue
+                if isinstance(clipped, MultiPolygon):
+                    clipped = max(clipped.geoms, key=lambda g: g.area)
 
-                    clipped = lot_poly.intersection(developable)
-                    if clipped.is_empty:
-                        continue
+                if not isinstance(clipped, Polygon):
+                    continue
 
-                    if isinstance(clipped, MultiPolygon):
-                        clipped = max(clipped.geoms, key=lambda g: g.area)
+                # Minimum area check
+                if clipped.area < self.rules.min_lot_area * 0.8:
+                    continue
 
-                    if not isinstance(clipped, Polygon):
-                        continue
+                # Classify lot type
+                lot_type = LotType.RESIDENTIAL
+                if i == 0 or i == num_columns - 1:
+                    lot_type = LotType.CORNER
 
-                    # Minimum area check
-                    if clipped.area < self.rules.min_lot_area * 0.8:
-                        continue
+                # Check shape quality
+                shape_q = compactness(clipped)
+                if shape_q < 0.3:
+                    lot_type = LotType.IRREGULAR
 
-                    # Classify lot type
-                    lot_type = LotType.RESIDENTIAL
-                    if i == 0 or i == num_columns - 1:
-                        lot_type = LotType.CORNER
-
-                    # Check shape quality
-                    shape_q = compactness(clipped)
-                    if shape_q < 0.3:
-                        lot_type = LotType.IRREGULAR
-
-                    lot = Lot(
-                        id=self._next_lot_id(),
-                        geometry=clipped,
-                        frontage_line=frontage_seg,
-                        road_segment_id=self._current_road_index(road),
-                        lot_type=lot_type,
-                        access_point=Point(mid_point.x, mid_point.y),
-                    )
-                    lot.compute_properties()
-                    lots.append(lot)
+                lot = Lot(
+                    id=self._next_lot_id(),
+                    geometry=clipped,
+                    frontage_line=frontage_seg,
+                    road_segment_id=self._current_road_index(road),
+                    lot_type=lot_type,
+                    access_point=Point(mid_point.x, mid_point.y),
+                )
+                lot.compute_properties()
+                lots.append(lot)
 
         return lots
 
