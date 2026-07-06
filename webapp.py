@@ -111,7 +111,10 @@ def _normalize_parcel_geojson(geojson: dict, zone: str, servicing: str) -> dict:
             continue
         geom = feat.get("geometry") or {}
         if geom.get("type") in ("Polygon", "MultiPolygon") and not parcel_found:
-            props = feat.setdefault("properties", {}) or {}
+            props = feat.setdefault("properties", {})
+            if props is None:
+                props = {}
+                feat["properties"] = props
             props.setdefault("zone_code", zone)
             props.setdefault("servicing_type", servicing)
             parcel_found = True
