@@ -1,0 +1,1174 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=1440, initial-scale=1.0" />
+  <title>Subdivision Agent — Desktop Mockup</title>
+  <style>
+    :root {
+      --bg: #f5f7fb;
+      --panel: #ffffff;
+      --panel-soft: #f9fbfe;
+      --border: #d9e1ec;
+      --border-strong: #b9c8db;
+      --text: #182230;
+      --muted: #667085;
+      --muted-2: #98a2b3;
+      --blue: #1f6feb;
+      --blue-dark: #1557c0;
+      --blue-soft: #eaf2ff;
+      --green: #15803d;
+      --green-soft: #e8f7e8;
+      --red: #c2413b;
+      --red-soft: #ffe8e6;
+      --orange: #b7791f;
+      --orange-soft: #fff3d7;
+      --road: #5f9fee;
+      --shadow: 0 10px 30px rgba(16, 24, 40, 0.08);
+      --radius: 12px;
+      --mono: ui-monospace, SFMono-Regular, Menlo, Consolas, "Liberation Mono", monospace;
+      --sans: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+    }
+
+    * {
+      box-sizing: border-box;
+    }
+
+    body {
+      margin: 0;
+      background: var(--bg);
+      color: var(--text);
+      font-family: var(--sans);
+      overflow: hidden;
+      min-width: 1360px;
+    }
+
+    .desktop-warning {
+      display: none;
+      position: fixed;
+      inset: 0;
+      z-index: 9999;
+      background: #0b1220;
+      color: white;
+      padding: 48px;
+      text-align: center;
+    }
+
+    @media (max-width: 1200px) {
+      .desktop-warning {
+        display: grid;
+        place-items: center;
+      }
+    }
+
+    .app {
+      height: 100vh;
+      display: grid;
+      grid-template-rows: 64px 1fr 58px;
+    }
+
+    header {
+      height: 64px;
+      background: rgba(255, 255, 255, 0.92);
+      backdrop-filter: blur(12px);
+      border-bottom: 1px solid var(--border);
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 0 22px;
+      z-index: 5;
+    }
+
+    .brand {
+      display: flex;
+      align-items: center;
+      gap: 14px;
+    }
+
+    .logo {
+      width: 38px;
+      height: 38px;
+      border-radius: 10px;
+      background: linear-gradient(145deg, #0f62fe, #7bb6ff);
+      display: grid;
+      place-items: center;
+      color: white;
+      box-shadow: inset 0 -10px 18px rgba(0, 0, 0, 0.12);
+      font-weight: 900;
+      letter-spacing: -1px;
+    }
+
+    .logo svg {
+      width: 26px;
+      height: 26px;
+    }
+
+    .brand-title {
+      display: flex;
+      align-items: baseline;
+      gap: 18px;
+    }
+
+    h1 {
+      margin: 0;
+      font-size: 26px;
+      line-height: 1;
+      letter-spacing: -0.03em;
+    }
+
+    .subtitle {
+      font-size: 14px;
+      color: var(--muted);
+    }
+
+    .top-actions {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+    }
+
+    .top-btn {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      height: 36px;
+      padding: 0 12px;
+      border: 1px solid transparent;
+      background: transparent;
+      border-radius: 9px;
+      color: #344054;
+      font-weight: 600;
+      cursor: pointer;
+    }
+
+    .top-btn:hover {
+      background: var(--blue-soft);
+      border-color: #c7ddff;
+      color: var(--blue);
+    }
+
+    .workspace {
+      display: grid;
+      grid-template-columns: 300px 1fr 360px;
+      gap: 12px;
+      padding: 12px;
+      overflow: hidden;
+    }
+
+    aside,
+    .right-rail,
+    .center {
+      min-height: 0;
+    }
+
+    .panel {
+      background: var(--panel);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      box-shadow: 0 1px 2px rgba(16, 24, 40, 0.04);
+    }
+
+    .left-rail {
+      display: grid;
+      grid-template-rows: auto auto 1fr;
+      gap: 10px;
+      overflow: hidden;
+    }
+
+    .section {
+      padding: 16px;
+    }
+
+    .section-title {
+      font-size: 12px;
+      font-weight: 800;
+      letter-spacing: 0.05em;
+      color: var(--blue);
+      text-transform: uppercase;
+      margin-bottom: 12px;
+    }
+
+    .group-title {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      font-weight: 800;
+      font-size: 15px;
+      margin-bottom: 14px;
+    }
+
+    .field {
+      margin-bottom: 14px;
+    }
+
+    label {
+      display: block;
+      font-size: 13px;
+      color: #344054;
+      font-weight: 650;
+      margin-bottom: 7px;
+    }
+
+    .select,
+    .input {
+      height: 36px;
+      width: 100%;
+      border: 1px solid var(--border-strong);
+      border-radius: 8px;
+      background: white;
+      padding: 0 10px;
+      color: var(--text);
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      font-weight: 600;
+      font-size: 13px;
+    }
+
+    .btn {
+      height: 40px;
+      width: 100%;
+      border-radius: 8px;
+      border: 1px solid var(--border-strong);
+      background: white;
+      color: #344054;
+      font-weight: 750;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      gap: 8px;
+      cursor: pointer;
+      transition: 0.16s ease;
+    }
+
+    .btn:hover {
+      border-color: var(--blue);
+      color: var(--blue);
+      background: #fbfdff;
+    }
+
+    .btn.primary {
+      background: linear-gradient(180deg, #2677ff, #0f62d9);
+      color: white;
+      border-color: #0f62d9;
+      box-shadow: 0 8px 18px rgba(31, 111, 235, 0.25);
+    }
+
+    .btn.primary:hover {
+      background: linear-gradient(180deg, #3985ff, #1557c0);
+      color: white;
+    }
+
+    .btn.slim {
+      height: 34px;
+      font-size: 12px;
+    }
+
+    .or {
+      text-align: center;
+      color: var(--muted);
+      font-size: 12px;
+      margin: 8px 0;
+    }
+
+    .checkbox-row {
+      display: flex;
+      align-items: center;
+      gap: 9px;
+      margin: 9px 0;
+      color: #344054;
+      font-size: 13px;
+      font-weight: 600;
+    }
+
+    .check {
+      width: 16px;
+      height: 16px;
+      border-radius: 4px;
+      border: 1px solid var(--border-strong);
+      display: grid;
+      place-items: center;
+      color: white;
+      font-size: 11px;
+      background: white;
+    }
+
+    .check.on {
+      background: var(--blue);
+      border-color: var(--blue);
+    }
+
+    .slider-head {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      font-size: 13px;
+      color: #344054;
+      font-weight: 700;
+      margin-bottom: 8px;
+    }
+
+    .slider {
+      height: 5px;
+      border-radius: 999px;
+      background: linear-gradient(90deg, var(--blue) 0 48%, #d0d8e5 48% 100%);
+      position: relative;
+      margin: 13px 4px 9px;
+    }
+
+    .slider::after {
+      content: "";
+      position: absolute;
+      top: 50%;
+      left: 48%;
+      width: 16px;
+      height: 16px;
+      transform: translate(-50%, -50%);
+      background: var(--blue);
+      border: 3px solid white;
+      border-radius: 50%;
+      box-shadow: 0 1px 5px rgba(0, 0, 0, 0.22);
+    }
+
+    .slider-labels {
+      display: flex;
+      justify-content: space-between;
+      color: var(--muted);
+      font-size: 11px;
+    }
+
+    .hint {
+      text-align: center;
+      color: var(--muted);
+      font-size: 11px;
+      margin-top: 7px;
+    }
+
+    .status-card {
+      padding: 16px;
+      display: flex;
+      gap: 13px;
+      align-items: center;
+    }
+
+    .status-icon {
+      width: 44px;
+      height: 44px;
+      border-radius: 50%;
+      border: 2px solid var(--green);
+      display: grid;
+      place-items: center;
+      color: var(--green);
+      font-size: 24px;
+      flex: none;
+    }
+
+    .status-title {
+      font-size: 15px;
+      font-weight: 850;
+      margin-bottom: 2px;
+    }
+
+    .status-sub {
+      font-size: 12px;
+      line-height: 1.4;
+      color: var(--muted);
+    }
+
+    .center {
+      display: grid;
+      grid-template-rows: 44px 1fr;
+      gap: 10px;
+      overflow: hidden;
+    }
+
+    .tabs {
+      display: flex;
+      gap: 6px;
+      align-items: center;
+      padding: 6px;
+      background: var(--panel);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+    }
+
+    .tab {
+      height: 31px;
+      padding: 0 13px;
+      border-radius: 8px;
+      border: 0;
+      background: transparent;
+      color: var(--muted);
+      font-weight: 750;
+      cursor: pointer;
+    }
+
+    .tab.active {
+      background: var(--blue-soft);
+      color: var(--blue);
+    }
+
+    .map-card {
+      position: relative;
+      overflow: hidden;
+      background: #f8fafc;
+    }
+
+    .map-toolbar {
+      position: absolute;
+      top: 14px;
+      left: 14px;
+      z-index: 3;
+      display: grid;
+      gap: 8px;
+    }
+
+    .toolbox {
+      background: white;
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      box-shadow: var(--shadow);
+      overflow: hidden;
+    }
+
+    .tool-btn {
+      width: 38px;
+      height: 38px;
+      display: grid;
+      place-items: center;
+      border-bottom: 1px solid var(--border);
+      color: #344054;
+      font-weight: 800;
+      cursor: pointer;
+      background: white;
+    }
+
+    .tool-btn:last-child {
+      border-bottom: 0;
+    }
+
+    .tool-btn.active {
+      background: var(--blue-soft);
+      color: var(--blue);
+      outline: 2px solid #b9d5ff;
+      outline-offset: -4px;
+    }
+
+    .map-svg {
+      width: 100%;
+      height: 100%;
+      display: block;
+    }
+
+    .map-legend {
+      position: absolute;
+      right: 18px;
+      bottom: 20px;
+      width: 192px;
+      background: rgba(255, 255, 255, 0.94);
+      border: 1px solid var(--border);
+      border-radius: 11px;
+      box-shadow: var(--shadow);
+      padding: 12px;
+      font-size: 12px;
+    }
+
+    .legend-row {
+      display: flex;
+      align-items: center;
+      gap: 9px;
+      margin: 7px 0;
+      color: #344054;
+      font-weight: 650;
+    }
+
+    .swatch {
+      width: 22px;
+      height: 14px;
+      border-radius: 3px;
+      border: 1px solid transparent;
+    }
+
+    .swatch.green { background: var(--green-soft); border-color: #90c78f; }
+    .swatch.red { background: var(--red-soft); border-color: #ee9994; }
+    .swatch.orange { background: var(--orange-soft); border-color: #efc46e; }
+    .line-swatch {
+      width: 28px;
+      height: 0;
+      border-top: 3px solid var(--road);
+    }
+    .dash-swatch {
+      width: 28px;
+      height: 0;
+      border-top: 1px dashed #667085;
+    }
+
+    .scale {
+      position: absolute;
+      left: 24px;
+      bottom: 24px;
+      color: #182230;
+      font-size: 12px;
+      font-weight: 650;
+    }
+
+    .scale-bar {
+      width: 172px;
+      height: 8px;
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      border: 1px solid #111827;
+      margin-top: 4px;
+    }
+
+    .scale-bar div:nth-child(odd) {
+      background: #111827;
+    }
+
+    .scale-bar div:nth-child(even) {
+      background: #ffffff;
+    }
+
+    .right-rail {
+      display: grid;
+      grid-template-rows: auto auto 1fr;
+      gap: 10px;
+      overflow: hidden;
+    }
+
+    .result-table {
+      width: 100%;
+      border-collapse: collapse;
+      font-size: 12px;
+    }
+
+    .result-table th {
+      text-align: left;
+      color: #344054;
+      font-size: 11px;
+      padding: 8px 6px;
+      border-bottom: 1px solid var(--border);
+      white-space: nowrap;
+    }
+
+    .result-table td {
+      padding: 9px 6px;
+      border-bottom: 1px solid #edf2f7;
+      font-weight: 650;
+      color: #344054;
+      white-space: nowrap;
+    }
+
+    .result-table tr.selected {
+      background: var(--blue-soft);
+      color: var(--blue);
+    }
+
+    .radio {
+      width: 14px;
+      height: 14px;
+      border-radius: 50%;
+      border: 1px solid var(--border-strong);
+      display: inline-block;
+      margin-right: 6px;
+      vertical-align: -2px;
+      position: relative;
+    }
+
+    .selected .radio {
+      border-color: var(--blue);
+    }
+
+    .selected .radio::after {
+      content: "";
+      position: absolute;
+      inset: 3px;
+      border-radius: 50%;
+      background: var(--blue);
+    }
+
+    .metric-list {
+      display: grid;
+      gap: 12px;
+      margin-top: 4px;
+      font-size: 13px;
+    }
+
+    .metric {
+      display: flex;
+      justify-content: space-between;
+      gap: 16px;
+      color: #344054;
+    }
+
+    .metric .value {
+      font-weight: 850;
+      color: var(--text);
+    }
+
+    .metric.score .value {
+      color: var(--green);
+      font-size: 22px;
+    }
+
+    .green-text { color: var(--green) !important; }
+    .red-text { color: var(--red) !important; }
+
+    .export-grid {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 8px;
+      margin-top: 10px;
+    }
+
+    .footer {
+      background: rgba(255, 255, 255, 0.92);
+      border-top: 1px solid var(--border);
+      display: grid;
+      grid-template-columns: 260px 260px 260px 1fr 180px;
+      align-items: center;
+      gap: 8px;
+      padding: 0 22px;
+      z-index: 5;
+    }
+
+    .foot-item {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      border-right: 1px solid var(--border);
+      height: 38px;
+    }
+
+    .foot-icon {
+      width: 32px;
+      height: 32px;
+      border: 1px solid var(--border-strong);
+      border-radius: 7px;
+      display: grid;
+      place-items: center;
+      color: #344054;
+    }
+
+    .foot-main {
+      font-size: 12px;
+      font-weight: 850;
+    }
+
+    .foot-sub {
+      color: var(--muted);
+      font-size: 11px;
+      margin-top: 1px;
+    }
+
+    .export-chips {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      justify-self: start;
+    }
+
+    .chip-label {
+      color: var(--blue);
+      font-weight: 850;
+      font-size: 12px;
+      margin-right: 8px;
+    }
+
+    .chip {
+      height: 34px;
+      padding: 0 12px;
+      border-radius: 8px;
+      border: 1px solid var(--border);
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      background: white;
+      font-weight: 750;
+      font-size: 12px;
+    }
+
+    .version {
+      justify-self: end;
+      display: flex;
+      gap: 10px;
+      align-items: center;
+      color: var(--muted);
+      font-size: 12px;
+      font-weight: 650;
+    }
+
+    .dot {
+      width: 8px;
+      height: 8px;
+      border-radius: 50%;
+      background: #16a34a;
+    }
+
+    .compare-view {
+      display: none;
+      grid-template-columns: 1fr 1fr;
+      gap: 10px;
+      height: 100%;
+    }
+
+    .compare-card {
+      display: grid;
+      grid-template-rows: 44px 1fr 190px;
+      overflow: hidden;
+    }
+
+    .compare-head {
+      padding: 12px 14px;
+      border-bottom: 1px solid var(--border);
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      font-weight: 850;
+      color: var(--blue);
+      font-size: 13px;
+    }
+
+    .badge {
+      padding: 4px 8px;
+      border-radius: 999px;
+      background: var(--green-soft);
+      color: var(--green);
+      font-size: 11px;
+      font-weight: 850;
+      margin-left: 8px;
+    }
+
+    .mini-map {
+      position: relative;
+      background: #f8fafc;
+      overflow: hidden;
+    }
+
+    .compare-metrics {
+      border-top: 1px solid var(--border);
+      padding: 12px;
+      background: white;
+    }
+
+    .mini-metrics {
+      width: 100%;
+      border-collapse: collapse;
+      font-size: 12px;
+    }
+
+    .mini-metrics td {
+      padding: 5px 4px;
+      border-bottom: 1px solid #edf2f7;
+      font-weight: 650;
+    }
+
+    .mini-metrics td:last-child {
+      text-align: right;
+      font-weight: 850;
+    }
+
+    .map-caption {
+      position: absolute;
+      left: 14px;
+      top: 14px;
+      z-index: 2;
+      background: white;
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      padding: 6px 10px;
+      font-size: 12px;
+      font-weight: 800;
+      box-shadow: var(--shadow);
+    }
+
+    .hide {
+      display: none !important;
+    }
+  </style>
+</head>
+<body>
+  <div class="desktop-warning">
+    <div>
+      <h2>Desktop-only mockup</h2>
+      <p>This prototype is intentionally designed for large desktop screens. Open it on a wider display for the full layout.</p>
+    </div>
+  </div>
+
+  <div class="app">
+    <header>
+      <div class="brand">
+        <div class="logo" aria-hidden="true">
+          <svg viewBox="0 0 48 48" fill="none">
+            <path d="M24 5 43 14 24 23 5 14 24 5Z" fill="white" opacity=".95"/>
+            <path d="M9 22 24 29 39 22" stroke="white" stroke-width="5" stroke-linecap="round" stroke-linejoin="round" opacity=".9"/>
+            <path d="M9 31 24 38 39 31" stroke="white" stroke-width="5" stroke-linecap="round" stroke-linejoin="round" opacity=".75"/>
+          </svg>
+        </div>
+        <div class="brand-title">
+          <h1>Subdivision Agent</h1>
+          <div class="subtitle">2D concept layout optimizer</div>
+        </div>
+      </div>
+
+      <nav class="top-actions">
+        <button class="top-btn">? Help</button>
+        <button class="top-btn">□ Open Project</button>
+        <button class="top-btn">▣ Save Project</button>
+        <button class="top-btn">⚙ Settings</button>
+      </nav>
+    </header>
+
+    <main class="workspace">
+      <aside class="left-rail">
+        <div class="panel section">
+          <div class="section-title">Inputs</div>
+
+          <div class="group-title">1. Parcel Input <span>⌃</span></div>
+          <div class="field">
+            <label>Upload a parcel boundary (GeoJSON)</label>
+            <button class="btn">⇧ Upload GeoJSON</button>
+            <div class="or">or</div>
+            <button class="btn">✎ Draw Parcel</button>
+          </div>
+
+          <div class="group-title" style="margin-top:18px;">2. Planning Controls <span>⌃</span></div>
+          <div class="field">
+            <label>Zone</label>
+            <div class="select">R-2 <span>⌄</span></div>
+          </div>
+          <div class="field">
+            <label>Servicing</label>
+            <div class="select">Serviced <span>⌄</span></div>
+          </div>
+
+          <div class="field">
+            <label>Road Pattern <span style="color:var(--muted-2);font-weight:700;">ⓘ</span></label>
+            <div class="checkbox-row"><span class="check"></span> Single Road</div>
+            <div class="checkbox-row"><span class="check on">✓</span> Cul-de-sac</div>
+            <div class="checkbox-row"><span class="check on">✓</span> Loop Road</div>
+          </div>
+
+          <div class="field">
+            <div class="slider-head"><span>Target Road Length</span><span>300 m</span></div>
+            <div class="slider"></div>
+            <div class="slider-labels"><span>100 m</span><span>800 m</span></div>
+          </div>
+
+          <button class="btn primary" id="generateBtn">✦ Generate</button>
+          <div class="hint">Generate concept layouts based on inputs</div>
+        </div>
+
+        <div class="panel status-card">
+          <div class="status-icon" id="statusIcon">✓</div>
+          <div>
+            <div class="section-title" style="margin:0 0 8px 0;">Job Status</div>
+            <div class="status-title" id="statusTitle">Idle / Ready</div>
+            <div class="status-sub" id="statusSub">Enter inputs and click Generate to create concept layouts.</div>
+          </div>
+        </div>
+
+        <div class="panel section">
+          <div class="section-title">Legend</div>
+          <div class="legend-row"><span class="swatch green"></span> Passing lots</div>
+          <div class="legend-row"><span class="swatch red"></span> Failed lots</div>
+          <div class="legend-row"><span class="swatch orange"></span> Remainder lots</div>
+          <div class="legend-row"><span class="line-swatch"></span> Roads</div>
+          <div class="legend-row"><span class="dash-swatch"></span> Buildable envelope</div>
+        </div>
+      </aside>
+
+      <section class="center">
+        <div class="tabs">
+          <button class="tab active" data-tab="generate">Generate</button>
+          <button class="tab" data-tab="results">Results</button>
+          <button class="tab" data-tab="compare">Compare</button>
+          <div style="margin-left:auto;color:var(--muted);font-size:12px;font-weight:650;">Green Meadow · R-2 · Serviced · 8.42 ha</div>
+        </div>
+
+        <div class="panel map-card" id="mainMap">
+          <div class="map-toolbar">
+            <div class="toolbox">
+              <div class="tool-btn active">↖</div>
+              <div class="tool-btn">✋</div>
+              <div class="tool-btn">□</div>
+            </div>
+            <div class="toolbox">
+              <div class="tool-btn">+</div>
+              <div class="tool-btn">−</div>
+            </div>
+            <div class="toolbox">
+              <div class="tool-btn">⌾</div>
+            </div>
+          </div>
+
+          <svg class="map-svg" viewBox="0 0 920 620" preserveAspectRatio="none" aria-label="Subdivision layout map">
+            <defs>
+              <pattern id="grid" width="42" height="42" patternUnits="userSpaceOnUse">
+                <path d="M 42 0 L 0 0 0 42" fill="none" stroke="#e8edf5" stroke-width="1"/>
+              </pattern>
+              <pattern id="contours" width="160" height="90" patternUnits="userSpaceOnUse">
+                <path d="M-20 55 C30 30,80 80,145 42 C190 16,220 46,250 30" fill="none" stroke="#e3e9f1" stroke-width="1"/>
+              </pattern>
+              <filter id="softShadow" x="-20%" y="-20%" width="140%" height="140%">
+                <feDropShadow dx="0" dy="4" stdDeviation="5" flood-color="#101828" flood-opacity=".10"/>
+              </filter>
+            </defs>
+
+            <rect width="920" height="620" fill="#f8fafc"/>
+            <rect width="920" height="620" fill="url(#grid)" opacity=".75"/>
+            <rect width="920" height="620" fill="url(#contours)" opacity=".85"/>
+
+            <path d="M0 488 C95 450 172 486 258 460 C367 430 464 478 555 452 C680 416 783 452 920 407" fill="none" stroke="#d8dee9" stroke-width="14" opacity=".8"/>
+            <text x="385" y="488" fill="#98a2b3" font-size="15" transform="rotate(7 385 488)">County Rd 42</text>
+            <path d="M78 0 C110 118 86 235 110 348 C127 426 106 512 122 620" fill="none" stroke="#e1e7ef" stroke-width="12"/>
+            <text x="104" y="310" fill="#98a2b3" font-size="14" transform="rotate(-82 104 310)">Pine Ridge Rd</text>
+            <path d="M822 0 C788 92 835 188 802 277 C770 366 822 462 776 620" fill="none" stroke="#8ec5ff" stroke-width="2"/>
+            <text x="806" y="260" fill="#4795dd" font-size="15" transform="rotate(82 806 260)">Clear Creek</text>
+            <ellipse cx="830" cy="88" rx="34" ry="20" fill="#bde0ff" opacity=".7"/>
+
+            <g id="layoutPreview">
+              <polygon points="240,95 422,117 570,110 700,98 746,170 752,312 700,350 636,455 450,456 274,428 198,340 212,230"
+                       fill="#fffdf5" stroke="#111827" stroke-width="3"/>
+
+              <g opacity=".8" stroke="#667085" stroke-width="1" stroke-dasharray="5 4" fill="none">
+                <path d="M250 120 L258 415"/>
+                <path d="M300 118 L305 430"/>
+                <path d="M350 111 L350 445"/>
+                <path d="M405 115 L405 452"/>
+                <path d="M462 116 L464 455"/>
+                <path d="M520 114 L524 455"/>
+                <path d="M580 110 L576 452"/>
+                <path d="M640 105 L610 448"/>
+                <path d="M700 120 L640 440"/>
+                <path d="M220 215 L738 225"/>
+                <path d="M214 300 L742 300"/>
+                <path d="M246 380 L685 382"/>
+              </g>
+
+              <path d="M242 420 L262 334 Q267 310 292 310 L564 310 Q594 310 606 337 L626 430"
+                    fill="none" stroke="#d4d9df" stroke-width="38" stroke-linecap="round" stroke-linejoin="round"/>
+              <path d="M242 420 L262 334 Q267 310 292 310 L564 310 Q594 310 606 337 L626 430"
+                    fill="none" stroke="#ffffff" stroke-width="28" stroke-linecap="round" stroke-linejoin="round"/>
+              <path d="M242 420 L262 334 Q267 310 292 310 L564 310 Q594 310 606 337 L626 430"
+                    fill="none" stroke="#5f9fee" stroke-width="16" stroke-linecap="round" stroke-linejoin="round"/>
+
+              <path d="M285 310 L285 220 Q285 185 318 184 L572 189 Q612 190 625 216 L666 216"
+                    fill="none" stroke="#d4d9df" stroke-width="38" stroke-linecap="round" stroke-linejoin="round"/>
+              <path d="M285 310 L285 220 Q285 185 318 184 L572 189 Q612 190 625 216 L666 216"
+                    fill="none" stroke="#ffffff" stroke-width="28" stroke-linecap="round" stroke-linejoin="round"/>
+              <path d="M285 310 L285 220 Q285 185 318 184 L572 189 Q612 190 625 216 L666 216"
+                    fill="none" stroke="#5f9fee" stroke-width="16" stroke-linecap="round" stroke-linejoin="round"/>
+              <circle cx="676" cy="216" r="25" fill="#ffffff" stroke="#d4d9df" stroke-width="8"/>
+              <circle cx="676" cy="216" r="20" fill="#5f9fee" opacity=".85"/>
+            </g>
+          </svg>
+
+          <div class="map-legend">
+            <div class="legend-row"><span class="swatch green"></span> Passing Lots</div>
+            <div class="legend-row"><span class="swatch red"></span> Failed Lots</div>
+            <div class="legend-row"><span class="swatch orange"></span> Remainder</div>
+            <div class="legend-row"><span class="line-swatch"></span> Road</div>
+            <div class="legend-row"><span class="dash-swatch"></span> Buildable Envelope</div>
+          </div>
+
+          <div class="scale">
+            <div>0&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;100&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;200&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;300 m</div>
+            <div class="scale-bar"><div></div><div></div><div></div></div>
+          </div>
+        </div>
+
+        <div class="compare-view" id="compareView">
+          <div class="panel compare-card">
+            <div class="compare-head">
+              <div>OPTION A — SINGLE ROAD <span class="badge">Preferred</span></div>
+              <button class="btn slim" style="width:auto;padding:0 12px;">View Details</button>
+            </div>
+            <div class="mini-map">
+              <div class="map-caption">Score 86 / 100</div>
+              <svg class="map-svg" viewBox="0 0 460 310" preserveAspectRatio="none">
+                <rect width="460" height="310" fill="#f8fafc"/>
+                <rect width="460" height="310" fill="url(#grid)" opacity=".6"/>
+                <polygon points="110,48 210,58 290,55 370,48 392,98 398,168 358,194 318,245 220,244 136,222 98,170 105,112" fill="#fffdf5" stroke="#111827" stroke-width="2"/>
+                <polygon points="120,60 350,55 378,112 360,170 322,232 145,215 112,160" fill="#e8f7e8" stroke="#7db97d" stroke-width="1" opacity=".75"/>
+                <polygon points="332,60 375,58 392,110 360,126" fill="#fff3d7" stroke="#e7b04e" stroke-width="1"/>
+                <polygon points="354,132 394,116 393,166 360,180" fill="#ffe8e6" stroke="#e8847d" stroke-width="1"/>
+                <g stroke="#667085" stroke-width="1" stroke-dasharray="4 3" opacity=".65">
+                  <path d="M150 70 L148 216"/><path d="M185 65 L185 228"/><path d="M220 62 L222 240"/><path d="M260 60 L260 240"/><path d="M300 58 L292 240"/>
+                  <path d="M115 112 L386 114"/><path d="M108 166 L384 166"/><path d="M135 210 L330 215"/>
+                </g>
+                <path d="M130 220 L142 158 Q146 134 170 132 L300 134 Q328 135 338 158 L352 230" fill="none" stroke="#ffffff" stroke-width="18" stroke-linecap="round" stroke-linejoin="round"/>
+                <path d="M130 220 L142 158 Q146 134 170 132 L300 134 Q328 135 338 158 L352 230" fill="none" stroke="#5f9fee" stroke-width="9" stroke-linecap="round" stroke-linejoin="round"/>
+                <path d="M166 132 L166 86 Q170 70 190 70 L310 72 Q330 72 334 95 L342 122" fill="none" stroke="#ffffff" stroke-width="18" stroke-linecap="round" stroke-linejoin="round"/>
+                <path d="M166 132 L166 86 Q170 70 190 70 L310 72 Q330 72 334 95 L342 122" fill="none" stroke="#5f9fee" stroke-width="9" stroke-linecap="round" stroke-linejoin="round"/>
+              </svg>
+            </div>
+            <div class="compare-metrics">
+              <table class="mini-metrics">
+                <tr><td>Residential Lots</td><td>28</td></tr>
+                <tr><td>Passing Lots</td><td class="green-text">24</td></tr>
+                <tr><td>Saleable Land</td><td>64%</td></tr>
+                <tr><td>Road Length</td><td class="green-text">292 m</td></tr>
+              </table>
+            </div>
+          </div>
+
+          <div class="panel compare-card">
+            <div class="compare-head">
+              <div>OPTION B — CUL-DE-SAC</div>
+              <button class="btn slim" style="width:auto;padding:0 12px;">View Details</button>
+            </div>
+            <div class="mini-map">
+              <div class="map-caption">Score 74 / 100</div>
+              <svg class="map-svg" viewBox="0 0 460 310" preserveAspectRatio="none">
+                <rect width="460" height="310" fill="#f8fafc"/>
+                <rect width="460" height="310" fill="url(#grid)" opacity=".6"/>
+                <polygon points="110,48 210,58 290,55 370,48 392,98 398,168 358,194 318,245 220,244 136,222 98,170 105,112" fill="#fffdf5" stroke="#111827" stroke-width="2"/>
+                <polygon points="118,58 330,56 355,132 318,230 150,218 106,170" fill="#e8f7e8" stroke="#7db97d" stroke-width="1" opacity=".75"/>
+                <polygon points="325,58 374,52 390,118 352,136" fill="#fff3d7" stroke="#e7b04e" stroke-width="1"/>
+                <polygon points="200,170 300,170 320,222 210,226" fill="#ffe8e6" stroke="#e8847d" stroke-width="1"/>
+                <g stroke="#667085" stroke-width="1" stroke-dasharray="4 3" opacity=".65">
+                  <path d="M150 70 L148 216"/><path d="M185 65 L185 228"/><path d="M220 62 L222 240"/><path d="M260 60 L260 240"/><path d="M300 58 L292 240"/>
+                  <path d="M115 112 L386 114"/><path d="M108 166 L384 166"/><path d="M135 210 L330 215"/>
+                </g>
+                <path d="M132 222 L145 158 Q150 136 174 136 L308 138 Q334 140 344 162 L356 232" fill="none" stroke="#ffffff" stroke-width="18" stroke-linecap="round" stroke-linejoin="round"/>
+                <path d="M132 222 L145 158 Q150 136 174 136 L308 138 Q334 140 344 162 L356 232" fill="none" stroke="#5f9fee" stroke-width="9" stroke-linecap="round" stroke-linejoin="round"/>
+                <path d="M168 136 L168 88 Q172 72 190 72 L314 74 Q336 76 348 96 L365 96" fill="none" stroke="#ffffff" stroke-width="18" stroke-linecap="round" stroke-linejoin="round"/>
+                <path d="M168 136 L168 88 Q172 72 190 72 L314 74 Q336 76 348 96 L365 96" fill="none" stroke="#5f9fee" stroke-width="9" stroke-linecap="round" stroke-linejoin="round"/>
+                <circle cx="372" cy="96" r="14" fill="#5f9fee" stroke="#ffffff" stroke-width="5"/>
+              </svg>
+            </div>
+            <div class="compare-metrics">
+              <table class="mini-metrics">
+                <tr><td>Residential Lots</td><td>25</td></tr>
+                <tr><td>Passing Lots</td><td class="green-text">20</td></tr>
+                <tr><td>Saleable Land</td><td>56%</td></tr>
+                <tr><td>Road Length</td><td>318 m</td></tr>
+              </table>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <aside class="right-rail">
+        <div class="panel section">
+          <div class="section-title">Layout Results</div>
+          <table class="result-table">
+            <thead>
+              <tr>
+                <th>Option</th><th>Score</th><th>Lots</th><th>Pass</th><th>Fail</th><th>Sale</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr class="selected">
+                <td><span class="radio"></span>Cul-de-sac</td><td>78.4</td><td>28</td><td>24</td><td>3</td><td>72%</td>
+              </tr>
+              <tr>
+                <td><span class="radio"></span>Loop Road</td><td>74.8</td><td>30</td><td>25</td><td>3</td><td>70%</td>
+              </tr>
+              <tr>
+                <td><span class="radio"></span>Single Road</td><td>66.1</td><td>22</td><td>17</td><td>3</td><td>61%</td>
+              </tr>
+            </tbody>
+          </table>
+          <button class="btn slim" id="compareBtn" style="margin-top:12px;">▥ Compare Options</button>
+        </div>
+
+        <div class="panel section">
+          <div class="section-title">Selected Layout Metrics</div>
+          <div class="metric-list">
+            <div class="metric score"><span>Total Score</span><span class="value">78.4 <small style="color:var(--muted);font-size:12px;">/ 100</small></span></div>
+            <div class="metric"><span>Saleable Land</span><span class="value">6.07 ha&nbsp;&nbsp;72%</span></div>
+            <div class="metric"><span>Road Length</span><span class="value">298 m</span></div>
+            <div class="metric"><span>Residential Lots</span><span class="value">28 lots</span></div>
+            <div class="metric"><span>Passing Lots</span><span class="value green-text">24 lots (86%)</span></div>
+            <div class="metric"><span>Failed Lots</span><span class="value red-text">3 lots (11%)</span></div>
+            <div class="metric"><span>Remainder Area</span><span class="value">2,350 m²</span></div>
+            <div class="metric"><span>Density Estimate</span><span class="value">33 lots / ha</span></div>
+          </div>
+        </div>
+
+        <div class="panel section">
+          <div class="section-title">Export Selected Layout</div>
+          <div class="export-grid">
+            <button class="btn slim">GeoJSON</button>
+            <button class="btn slim">DXF</button>
+            <button class="btn slim">QGIS</button>
+          </div>
+
+          <div style="border-top:1px solid var(--border);margin-top:16px;padding-top:14px;">
+            <div class="section-title">Scenario</div>
+            <div class="input">Halifax_R2_test_1</div>
+            <button class="btn slim" style="margin-top:10px;">Save Scenario</button>
+          </div>
+        </div>
+      </aside>
+    </main>
+
+    <footer class="footer">
+      <div class="foot-item">
+        <div class="foot-icon">▣</div>
+        <div><div class="foot-main">Runs locally</div><div class="foot-sub">All processing on your machine</div></div>
+      </div>
+      <div class="foot-item">
+        <div class="foot-icon">◇</div>
+        <div><div class="foot-main">Private & Secure</div><div class="foot-sub">No cloud API required</div></div>
+      </div>
+      <div class="foot-item">
+        <div class="foot-icon">▤</div>
+        <div><div class="foot-main">GIS Friendly</div><div class="foot-sub">Works with existing data</div></div>
+      </div>
+
+      <div class="export-chips">
+        <span class="chip-label">SUPPORTED EXPORTS</span>
+        <span class="chip">□ GeoJSON</span>
+        <span class="chip">▱ DXF</span>
+        <span class="chip">Q QGIS</span>
+      </div>
+
+      <div class="version">
+        <span>v1.0.0</span>
+        <span class="dot"></span>
+        <span>Up to date</span>
+      </div>
+    </footer>
+  </div>
+
+  <script>
+    const tabs = document.querySelectorAll(".tab");
+    const mainMap = document.getElementById("mainMap");
+    const compareView = document.getElementById("compareView");
+    const generateBtn = document.getElementById("generateBtn");
+    const compareBtn = document.getElementById("compareBtn");
+    const statusTitle = document.getElementById("statusTitle");
+    const statusSub = document.getElementById("statusSub");
+    const statusIcon = document.getElementById("statusIcon");
+
+    function setTab(tabName) {
+      tabs.forEach(t => t.classList.toggle("active", t.dataset.tab === tabName));
+      if (tabName === "compare") {
+        mainMap.classList.add("hide");
+        compareView.style.display = "grid";
+      } else {
+        compareView.style.display = "none";
+        mainMap.classList.remove("hide");
+      }
+    }
+
+    tabs.forEach(tab => tab.addEventListener("click", () => setTab(tab.dataset.tab)));
+    compareBtn.addEventListener("click", () => setTab("compare"));
+
+    generateBtn.addEventListener("click", () => {
+      statusIcon.textContent = "…";
+      statusTitle.textContent = "Generating layouts";
+      statusSub.textContent = "Detecting parcel shape, placing roads, carving lots...";
+      setTimeout(() => {
+        statusIcon.textContent = "✓";
+        statusTitle.textContent = "Generation Complete";
+        statusSub.textContent = "3 layout options generated. 8.42 ha parcel processed.";
+        setTab("results");
+      }, 900);
+    });
+  </script>
+</body>
+</html>

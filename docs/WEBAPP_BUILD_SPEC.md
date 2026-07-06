@@ -17,6 +17,34 @@ Build a web app that replaces the CLI with a browser UI. Users can draw/upload a
 - **Storage:** File-based — one folder per scenario
 - **New deps:** `fastapi`, `uvicorn`, `python-multipart`
 
+## Design References
+
+The user provided design references. **Match these as closely as possible:**
+
+1. **`web/mockup.html`** — Full HTML/CSS mockup of the desktop app. Three-column layout:
+   - Left rail (300px): Parcel input (upload/draw), Planning controls (zone, servicing, road patterns, road length slider), Generate button, Job status, Legend
+   - Center: Tabs (Generate / Results / Compare), map area with toolbar, legend, scale bar
+   - Right rail (360px): Layout results table, selected layout metrics, export buttons, scenario save
+   - Footer: status info, export chips, version
+   - **Copy the CSS variables, colors, fonts, spacing from this mockup.**
+
+2. **`web/reference/img_d506c2b0ab75.jpg`** — UI screenshot reference
+3. **`web/reference/img_22c6978cab14.jpg`** — UI screenshot reference
+4. **`web/reference/img_d55d50115c98.jpg`** — UI screenshot reference
+
+**Look at ALL of these images.** They show the desired look and feel. Match their layout, color scheme, component style, and visual language as closely as possible. The mockup HTML is the primary design source — the JPGs are additional reference.
+
+Key design elements from the mockup:
+- Color palette: `--blue: #1f6feb`, `--green: #15803d`, `--red: #c2413b`, `--orange: #b7791f`, `--road: #5f9fee`
+- Font: Inter / system-ui sans-serif
+- Panels: white with `#d9e1ec` borders, 12px radius
+- Buttons: `.btn.primary` = blue gradient, `.btn` = white with border
+- Three-column grid: `300px 1fr 360px`
+- Header: 64px with logo + title + top actions
+- Footer: 58px with status items + export chips
+- Tabs: Generate / Results / Compare
+- Compare view: side-by-side panels with mini-maps and metrics tables
+
 ## Files to Create
 
 ### 1. `webapp.py` — FastAPI backend (~200 lines)

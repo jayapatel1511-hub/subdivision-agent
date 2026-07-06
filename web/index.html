@@ -1,0 +1,878 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=1440, initial-scale=1.0" />
+  <title>Subdivision Agent</title>
+
+  <!-- Leaflet core -->
+  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"/>
+  <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+
+  <!-- Leaflet.draw — drawing parcel polygons -->
+  <link rel="stylesheet" href="https://unpkg.com/leaflet-draw@1.0.4/dist/leaflet.draw.css"/>
+  <script src="https://unpkg.com/leaflet-draw@1.0.4/dist/leaflet.draw.js"></script>
+
+  <!-- Leaflet.Sync — side-by-side comparison -->
+  <script src="https://unpkg.com/leaflet.sync@0.2.4/L.Map.Sync.js"></script>
+
+  <link rel="stylesheet" href="style.css"/>
+</head>
+<body>
+  <div class="desktop-warning">
+    <div>
+      <h2>Desktop-only tool</h2>
+      <p>This app is designed for large desktop screens. Open it on a wider display for the full layout.</p>
+    </div>
+  </div>
+
+  <div class="app">
+    <header>
+      <div class="brand">
+        <div class="logo" aria-hidden="true">
+          <svg viewBox="0 0 48 48" fill="none">
+            <path d="M24 5 43 14 24 23 5 14 24 5Z" fill="white" opacity=".95"/>
+            <path d="M9 22 24 29 39 22" stroke="white" stroke-width="5" stroke-linecap="round" stroke-linejoin="round" opacity=".9"/>
+            <path d="M9 31 24 38 39 31" stroke="white" stroke-width="5" stroke-linecap="round" stroke-linejoin="round" opacity=".75"/>
+          </svg>
+        </div>
+        <div class="brand-title">
+          <h1>Subdivision Agent</h1>
+          <div class="subtitle">2D concept layout optimizer</div>
+        </div>
+      </div>
+
+      <nav class="top-actions">
+        <button class="top-btn" id="helpBtn">? Help</button>
+        <button class="top-btn" id="openBtn">□ Open Project</button>
+        <button class="top-btn" id="saveBtn">▣ Save Project</button>
+        <button class="top-btn" id="settingsBtn">⚙ Settings</button>
+      </nav>
+    </header>
+
+    <main class="workspace">
+      <!-- ── LEFT RAIL ─────────────────────────────────────────────── -->
+      <aside class="left-rail">
+        <div class="panel section">
+          <div class="section-title">Inputs</div>
+
+          <div class="group-title">1. Parcel Input <span>⌃</span></div>
+          <div class="field">
+            <label>Upload a parcel boundary (GeoJSON)</label>
+            <input type="file" id="parcelFile" accept=".geojson,.json" class="btn" style="display:none;"/>
+            <button class="btn" id="uploadBtn">⇧ Upload GeoJSON</button>
+            <div class="or">or</div>
+            <button class="btn" id="drawBtn">✎ Draw Parcel</button>
+          </div>
+
+          <div class="group-title" style="margin-top:18px;">2. Planning Controls <span>⌃</span></div>
+          <div class="field">
+            <label>Zone</label>
+            <select class="select" id="zoneSelect"></select>
+          </div>
+          <div class="field">
+            <label>Servicing</label>
+            <select class="select" id="servicingSelect"></select>
+          </div>
+
+          <div class="field">
+            <label>Road Pattern <span style="color:var(--muted-2);font-weight:700;">ⓘ</span></label>
+            <label class="checkbox-row"><span class="check on" data-pattern="single_road">✓</span> Single Road</label>
+            <label class="checkbox-row"><span class="check" data-pattern="cul_de_sac"></span> Cul-de-sac</label>
+            <label class="checkbox-row"><span class="check on" data-pattern="loop_road">✓</span> Loop Road</label>
+          </div>
+
+          <div class="field">
+            <div class="slider-head"><span>Target Road Length</span><span id="roadLenVal">auto</span></div>
+            <input type="range" class="slider" id="roadLen" min="100" max="800" step="20" value="300"/>
+            <div class="slider-labels"><span>100 m</span><span>800 m</span></div>
+          </div>
+
+          <button class="btn primary" id="generateBtn">✦ Generate</button>
+          <div class="hint">Generate concept layouts based on inputs</div>
+        </div>
+
+        <div class="panel status-card">
+          <div class="status-icon" id="statusIcon">✓</div>
+          <div>
+            <div class="section-title" style="margin:0 0 8px 0;">Job Status</div>
+            <div class="status-title" id="statusTitle">Idle / Ready</div>
+            <div class="status-sub" id="statusSub">Enter inputs and click Generate to create concept layouts.</div>
+          </div>
+        </div>
+
+        <div class="panel section">
+          <div class="section-title">Legend</div>
+          <div class="legend-row"><span class="swatch green"></span> Passing lots</div>
+          <div class="legend-row"><span class="swatch red"></span> Failed lots</div>
+          <div class="legend-row"><span class="swatch orange"></span> Remainder lots</div>
+          <div class="legend-row"><span class="line-swatch"></span> Roads</div>
+          <div class="legend-row"><span class="dash-swatch"></span> Buildable envelope</div>
+        </div>
+      </aside>
+
+      <!-- ── CENTER ─────────────────────────────────────────────────── -->
+      <section class="center">
+        <div class="tabs">
+          <button class="tab active" data-tab="generate">Generate</button>
+          <button class="tab" data-tab="results">Results</button>
+          <button class="tab" data-tab="compare">Compare</button>
+          <div class="tab-meta" id="tabMeta">No parcel loaded</div>
+        </div>
+
+        <div class="panel map-card" id="mainMap">
+          <div class="map-toolbar">
+            <div class="toolbox">
+              <div class="tool-btn active" id="toolPan" title="Pan">↖</div>
+              <div class="tool-btn" id="toolDraw" title="Draw parcel">✎</div>
+            </div>
+            <div class="toolbox">
+              <div class="tool-btn" id="toolZoomIn" title="Zoom in">+</div>
+              <div class="tool-btn" id="toolZoomOut" title="Zoom out">−</div>
+            </div>
+            <div class="toolbox">
+              <div class="tool-btn" id="toolFit" title="Fit to parcel">⌾</div>
+            </div>
+          </div>
+
+          <div id="map"></div>
+
+          <div class="map-legend">
+            <div class="legend-row"><span class="swatch green"></span> Passing Lots</div>
+            <div class="legend-row"><span class="swatch red"></span> Failed Lots</div>
+            <div class="legend-row"><span class="swatch orange"></span> Remainder</div>
+            <div class="legend-row"><span class="line-swatch"></span> Road</div>
+            <div class="legend-row"><span class="dash-swatch"></span> Buildable Envelope</div>
+          </div>
+
+          <div class="scale" id="scaleNote">Scale shown on map</div>
+        </div>
+
+        <div class="compare-view" id="compareView">
+          <div class="compare-card">
+            <div class="compare-head">
+              <div id="compareHeadA">OPTION A</div>
+              <button class="btn slim" id="cmpOpenA" style="width:auto;padding:0 12px;">View Details</button>
+            </div>
+            <div class="mini-map">
+              <div class="map-caption" id="cmpScoreA">—</div>
+              <div id="compareMapA"></div>
+            </div>
+            <div class="compare-metrics">
+              <table class="mini-metrics" id="cmpMetricsA"></table>
+            </div>
+          </div>
+
+          <div class="compare-card">
+            <div class="compare-head">
+              <div id="compareHeadB">OPTION B</div>
+              <button class="btn slim" id="cmpOpenB" style="width:auto;padding:0 12px;">View Details</button>
+            </div>
+            <div class="mini-map">
+              <div class="map-caption" id="cmpScoreB">—</div>
+              <div id="compareMapB"></div>
+            </div>
+            <div class="compare-metrics">
+              <table class="mini-metrics" id="cmpMetricsB"></table>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <!-- ── RIGHT RAIL ─────────────────────────────────────────────── -->
+      <aside class="right-rail">
+        <div class="panel section">
+          <div class="section-title">Layout Results</div>
+          <table class="result-table">
+            <thead>
+              <tr>
+                <th>Option</th><th>Score</th><th>Lots</th><th>Pass</th><th>Fail</th><th>Sale</th>
+              </tr>
+            </thead>
+            <tbody id="resultTableBody">
+              <tr><td colspan="6" style="color:var(--muted);font-weight:600;">No results yet</td></tr>
+            </tbody>
+          </table>
+          <button class="btn slim" id="compareBtn" style="margin-top:12px;">▥ Compare Options</button>
+        </div>
+
+        <div class="panel section">
+          <div class="section-title">Selected Layout Metrics</div>
+          <div class="metric-list" id="metricList">
+            <div class="metric"><span style="color:var(--muted);">Generate a layout to see metrics.</span></div>
+          </div>
+        </div>
+
+        <div class="panel section">
+          <div class="section-title">Export Selected Layout</div>
+          <div class="export-grid">
+            <button class="btn slim" id="exportGeoJSON">GeoJSON</button>
+            <button class="btn slim" id="exportDXF">DXF</button>
+            <button class="btn slim" id="exportQGIS">QGIS</button>
+          </div>
+
+          <div class="scenario-divider">
+            <div class="section-title">Scenario</div>
+            <input class="input" id="scenarioName" placeholder="scenario_name"/>
+            <button class="btn slim" id="saveScenarioBtn" style="margin-top:10px;">Save Scenario</button>
+            <div style="margin-top:10px;">
+              <select class="select" id="loadScenarioSelect" style="margin-bottom:10px;">
+                <option value="">Load scenario…</option>
+              </select>
+              <button class="btn slim" id="loadScenarioBtn">Load Scenario</button>
+            </div>
+          </div>
+        </div>
+      </aside>
+    </main>
+
+    <footer class="footer">
+      <div class="foot-item">
+        <div class="foot-icon">▣</div>
+        <div><div class="foot-main">Runs locally</div><div class="foot-sub">All processing on your machine</div></div>
+      </div>
+      <div class="foot-item">
+        <div class="foot-icon">◇</div>
+        <div><div class="foot-main">Private &amp; Secure</div><div class="foot-sub">No cloud API required</div></div>
+      </div>
+      <div class="foot-item">
+        <div class="foot-icon">▤</div>
+        <div><div class="foot-main">GIS Friendly</div><div class="foot-sub">Works with existing data</div></div>
+      </div>
+
+      <div class="export-chips">
+        <span class="chip-label">SUPPORTED EXPORTS</span>
+        <span class="chip">□ GeoJSON</span>
+        <span class="chip">▱ DXF</span>
+        <span class="chip">Q QGIS</span>
+      </div>
+
+      <div class="version">
+        <span>v1.0.0</span>
+        <span class="dot"></span>
+        <span>Up to date</span>
+      </div>
+    </footer>
+  </div>
+
+  <script>
+  /* ───────────────────────────────────────────────────────────────────
+     Subdivision Agent — frontend logic
+     Single-page app: draw/upload parcel → generate → view → compare → export
+     ─────────────────────────────────────────────────────────────────── */
+
+  const API = "";
+  let mainMap, compareMapA, compareMapB;
+
+  // App state
+  let currentJobId = null;
+  let currentResults = [];      // serialized result dicts
+  let currentSelectedIdx = 0;
+  let parcelGeoJSON = null;     // FeatureCollection drawn/uploaded by user
+  let parcelLayer = null;       // Leaflet layer for the parcel boundary
+  let drawHandler = null;
+  let resultsLayerGroup = null; // holds all result feature layers on the main map
+  let layerControl = null;
+
+  // Basemaps
+  const baseMaps = {
+    "Streets": L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", {
+      maxZoom: 22, attribution: "© OpenStreetMap contributors"
+    }),
+    "Satellite": L.tileLayer(
+      "https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}", {
+      maxZoom: 22, attribution: "© Esri World Imagery"
+    }),
+    "Minimal": L.tileLayer("https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png", {
+      maxZoom: 22, attribution: "© CARTO © OpenStreetMap contributors"
+    }),
+  };
+
+  // ── Styling helpers ───────────────────────────────────────────────
+  function styleFor(feature) {
+    const layer = feature.properties.layer;
+    const status = feature.properties.status;
+    if (layer === "parcel") {
+      return { color: "#111827", weight: 2, opacity: 1, fill: false };
+    }
+    if (layer === "road") {
+      return { color: "#2196f3", weight: 3, opacity: 0.9, fillOpacity: 0.1 };
+    }
+    if (layer === "road_centerline") {
+      return { color: "#2196f3", weight: 1, opacity: 0.8, dashArray: "6 4" };
+    }
+    if (layer === "frontage") {
+      return { color: "#111827", weight: 1, opacity: 0.9 };
+    }
+    if (layer === "buildable_envelope") {
+      return { color: "#15803d", weight: 1, opacity: 0.8, dashArray: "4 4", fill: false };
+    }
+    // lots
+    if (status === "passing")  return { color: "#2e7d32", weight: 1, fillColor: "#4caf50", fillOpacity: 0.3 };
+    if (status === "failing") return { color: "#c62828", weight: 1, fillColor: "#f44336", fillOpacity: 0.3 };
+    if (status === "remainder") return { color: "#ef6c00", weight: 1, fillColor: "#ff9800", fillOpacity: 0.2 };
+    return { color: "#666", weight: 1, fillOpacity: 0.1 };
+  }
+
+  function lotPopup(feature) {
+    const p = feature.properties;
+    if (p.layer !== "lots") return null;
+    const passLabel = p.is_residential
+      ? (p.passes_all
+          ? `<span class="pop-pass">PASS</span>`
+          : `<span class="pop-fail">FAIL</span>`)
+      : `<span style="color:var(--orange);font-weight:800;">${p.lot_type.toUpperCase()}</span>`;
+    const checks = [];
+    if (p.is_residential) {
+      if (!p.passes_area) checks.push("area");
+      if (!p.passes_frontage) checks.push("frontage");
+      if (!p.passes_depth) checks.push("depth");
+      if (!p.passes_shape) checks.push("shape");
+      if (!p.passes_buildable) checks.push("buildable");
+      if (!p.passes_service) checks.push("service");
+    }
+    return `
+      <b>Lot ${p.lot_id}</b> &nbsp;${passLabel}<br/>
+      <div class="pop-row"><span>Type</span><span>${p.lot_type}</span></div>
+      <div class="pop-row"><span>Area</span><span>${p.area_sqm} m²</span></div>
+      <div class="pop-row"><span>Frontage</span><span>${p.frontage_m} m</span></div>
+      <div class="pop-row"><span>Depth</span><span>${p.depth_m} m</span></div>
+      <div class="pop-row"><span>Shape q</span><span>${p.shape_quality}</span></div>
+      ${checks.length ? `<div style="margin-top:4px;">Fails: ${checks.join(", ")}</div>` : ""}
+    `;
+  }
+
+  // ── Map init ──────────────────────────────────────────────────────
+  function initMaps() {
+    mainMap = L.map("map", { zoomControl: true, preferCanvas: false }).setView([44.65, -63.57], 13);
+    baseMaps.Streets.addTo(mainMap);
+
+    resultsLayerGroup = L.layerGroup().addTo(mainMap);
+
+    layerControl = L.control.layers(baseMaps, {
+      "Results": resultsLayerGroup,
+    }, { position: "topright", collapsed: false });
+    mainMap.addControl(layerControl);
+    // Move layers control below the top toolbar
+    const lc = mainMap._container.querySelector(".leaflet-control-layers");
+    if (lc) lc.parentElement.style.top = "64px";
+
+    compareMapA = L.map("compareMapA", { zoomControl: true }).setView([44.65, -63.57], 13);
+    compareMapB = L.map("compareMapB", { zoomControl: true }).setView([44.65, -63.57], 13);
+    baseMaps.Streets.addTo(compareMapA);
+    L.tileLayer("https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png", {
+      maxZoom: 22, attribution: "© CARTO © OSM"
+    }).addTo(compareMapB);
+
+    // Sync the two compare maps
+    if (compareMapA.sync && compareMapB.sync) {
+      compareMapA.sync(compareMapB);
+      compareMapB.sync(compareMapA);
+    }
+  }
+
+  function invalidateMaps() {
+    setTimeout(() => {
+      if (mainMap) mainMap.invalidateSize();
+      if (compareMapA) compareMapA.invalidateSize();
+      if (compareMapB) compareMapB.invalidateSize();
+    }, 50);
+  }
+
+  // ── Parcel input ──────────────────────────────────────────────────
+  function setParcelGeoJSON(fc, fromDraw=false) {
+    parcelGeoJSON = fc;
+    if (parcelLayer) { mainMap.removeLayer(parcelLayer); parcelLayer = null; }
+    if (!fc) { updateTabMeta(); return; }
+    parcelLayer = L.geoJSON(fc, {
+      style: { color: "#111827", weight: 2, fill: false },
+      pointToLayer: (f, latlng) => L.circleMarker(latlng, { radius: 5, color: "#1f6feb" }),
+    }).addTo(mainMap);
+    try { mainMap.fitBounds(parcelLayer.getBounds(), { padding: [40, 40] }); } catch (e) {}
+    updateTabMeta();
+  }
+
+  function featureCollectionFromLayer(layer) {
+    const geojson = layer.toGeoJSON();
+    // toGeoJSON returns a Feature or FeatureCollection depending on version
+    if (geojson.type === "Feature") {
+      return { type: "FeatureCollection", features: [geojson] };
+    }
+    return geojson;
+  }
+
+  function updateTabMeta() {
+    const el = document.getElementById("tabMeta");
+    if (!parcelGeoJSON) { el.textContent = "No parcel loaded"; return; }
+    const z = document.getElementById("zoneSelect").value;
+    const s = document.getElementById("servicingSelect").value;
+    // Estimate area from the first polygon feature (rough, in degrees² → not meaningful; show count)
+    let coords = 0;
+    try {
+      const feats = parcelGeoJSON.features || [];
+      if (feats.length) coords = feats[0].geometry.coordinates[0].length;
+    } catch (e) {}
+    el.textContent = `${coords} pts · ${z} · ${s}`;
+  }
+
+  // ── Generate flow ────────────────────────────────────────────────
+  function selectedPatterns() {
+    return Array.from(document.querySelectorAll(".check[data-pattern]"))
+      .filter(c => c.classList.contains("on"))
+      .map(c => c.dataset.pattern);
+  }
+
+  function setStatus(state, title, sub) {
+    const icon = document.getElementById("statusIcon");
+    icon.className = "status-icon" + (state === "running" ? " running" : state === "error" ? " error" : "");
+    icon.textContent = state === "running" ? "…" : state === "error" ? "!" : "✓";
+    document.getElementById("statusTitle").textContent = title;
+    document.getElementById("statusSub").textContent = sub;
+  }
+
+  async function generate() {
+    if (!parcelGeoJSON) {
+      setStatus("error", "No parcel", "Draw or upload a parcel boundary first.");
+      return;
+    }
+    const patterns = selectedPatterns();
+    if (!patterns.length) {
+      setStatus("error", "No pattern", "Select at least one road pattern.");
+      return;
+    }
+    const roadLen = document.getElementById("roadLen").value;
+    const body = {
+      parcel_geojson: parcelGeoJSON,
+      zone: document.getElementById("zoneSelect").value,
+      servicing: document.getElementById("servicingSelect").value,
+      patterns,
+      road_length: document.getElementById("roadLenVal").textContent === "auto" ? null : parseFloat(roadLen),
+    };
+    setStatus("running", "Generating layouts", "Detecting parcel shape, placing roads, carving lots...");
+    document.getElementById("generateBtn").disabled = true;
+
+    try {
+      const res = await fetch(API + "/api/generate", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(body),
+      });
+      if (!res.ok) {
+        const err = await res.text();
+        setStatus("error", "Request failed", err);
+        return;
+      }
+      const { job_id } = await res.json();
+      currentJobId = job_id;
+      pollStatus(job_id);
+    } catch (e) {
+      setStatus("error", "Network error", String(e));
+    } finally {
+      document.getElementById("generateBtn").disabled = false;
+    }
+  }
+
+  async function pollStatus(jobId) {
+    let attempts = 0;
+    const tick = async () => {
+      attempts++;
+      try {
+        const res = await fetch(API + `/api/status/${jobId}`);
+        const data = await res.json();
+        if (data.status === "done") {
+          currentResults = data.results || [];
+          if (!currentResults.length) {
+            setStatus("error", "No layouts", "Engine produced no layouts for this parcel.");
+            return;
+          }
+          currentSelectedIdx = 0;
+          renderResultsTable();
+          selectResult(0);
+          setStatus("done", "Generation Complete",
+            `${currentResults.length} option(s) generated.`);
+          setTab("results");
+          return;
+        }
+        if (data.status === "error") {
+          setStatus("error", "Generation failed", data.error || "Unknown error");
+          return;
+        }
+        if (attempts > 240) { // ~6 min
+          setStatus("error", "Timed out", "Job did not finish in time.");
+          return;
+        }
+        setTimeout(tick, 1500);
+      } catch (e) {
+        setStatus("error", "Polling error", String(e));
+      }
+    };
+    tick();
+  }
+
+  // ── Results rendering ─────────────────────────────────────────────
+  function patternLabel(v) {
+    const map = {
+      single_road: "Single Road", cul_de_sac: "Cul-de-sac", loop_road: "Loop Road",
+      t_road: "T-Road", spine_branch: "Spine + Branch", existing_road: "Existing Road",
+      cluster: "Cluster", large_lot_rural: "Large Lot Rural",
+    };
+    return map[v] || v;
+  }
+
+  function renderResultsTable() {
+    const tbody = document.getElementById("resultTableBody");
+    tbody.innerHTML = "";
+    currentResults.forEach((r, i) => {
+      const tr = document.createElement("tr");
+      tr.innerHTML = `
+        <td><span class="radio"></span>${patternLabel(r.pattern)}</td>
+        <td>${r.score.total_score.toFixed(1)}</td>
+        <td>${r.residential_lots}</td>
+        <td class="green-text">${r.passing_lots}</td>
+        <td class="red-text">${r.failed_lots}</td>
+        <td>${r.saleable_land_pct.toFixed(0)}%</td>`;
+      tr.addEventListener("click", () => selectResult(i));
+      tbody.appendChild(tr);
+    });
+  }
+
+  function selectResult(idx) {
+    currentSelectedIdx = idx;
+    // highlight table row
+    document.querySelectorAll("#resultTableBody tr").forEach((tr, i) => {
+      tr.classList.toggle("selected", i === idx);
+    });
+    const r = currentResults[idx];
+    if (!r) return;
+    renderMetrics(r);
+    renderOnMap(r);
+    setTab("results");
+  }
+
+  function renderMetrics(r) {
+    const list = document.getElementById("metricList");
+    const grossHa = (r.gross_area / 10000).toFixed(2);
+    const density = r.gross_area > 0 ? (r.residential_lots / (r.gross_area / 10000)).toFixed(1) : "0";
+    const passPct = r.residential_lots > 0 ? Math.round(100 * r.passing_lots / r.residential_lots) : 0;
+    const failPct = r.residential_lots > 0 ? Math.round(100 * r.failed_lots / r.residential_lots) : 0;
+    list.innerHTML = `
+      <div class="metric score"><span>Total Score</span><span class="value">${r.score.total_score.toFixed(1)} <small style="color:var(--muted);font-size:12px;">/ 100</small></span></div>
+      <div class="metric"><span>Saleable Land</span><span class="value">${(r.passing_lot_area/10000).toFixed(2)} ha&nbsp;&nbsp;${r.saleable_land_pct.toFixed(0)}%</span></div>
+      <div class="metric"><span>Road Length</span><span class="value">${Math.round(r.total_road_length)} m</span></div>
+      <div class="metric"><span>Residential Lots</span><span class="value">${r.residential_lots} lots</span></div>
+      <div class="metric"><span>Passing Lots</span><span class="value green-text">${r.passing_lots} lots (${passPct}%)</span></div>
+      <div class="metric"><span>Failed Lots</span><span class="value red-text">${r.failed_lots} lots (${failPct}%)</span></div>
+      <div class="metric"><span>Remainder Area</span><span class="value">${Math.round(r.remainder_area)} m²</span></div>
+      <div class="metric"><span>Density Estimate</span><span class="value">${density} lots / ha</span></div>
+      <div class="metric"><span>Gross Area</span><span class="value">${grossHa} ha</span></div>`;
+  }
+
+  function renderOnMap(r) {
+    resultsLayerGroup.clearLayers();
+    if (!r || !r.geojson) return;
+    const gj = L.geoJSON(r.geojson, {
+      style: styleFor,
+      onEachFeature: (feature, lyr) => {
+        const pop = lotPopup(feature);
+        if (pop) lyr.bindPopup(pop);
+      },
+    });
+    resultsLayerGroup.addLayer(gj);
+    try {
+      const b = gj.getBounds();
+      if (b.isValid()) mainMap.fitBounds(b, { padding: [40, 40] });
+    } catch (e) {}
+  }
+
+  // ── Compare view ──────────────────────────────────────────────────
+  function renderCompare() {
+    if (!currentResults.length) return;
+    const a = currentResults[0];
+    const b = currentResults[1] || currentResults[0];
+
+    document.getElementById("compareHeadA").innerHTML =
+      `OPTION A — ${patternLabel(a.pattern).toUpperCase()} <span class="badge">Preferred</span>`;
+    document.getElementById("compareHeadB").innerHTML =
+      `OPTION B — ${patternLabel(b.pattern).toUpperCase()}`;
+    document.getElementById("cmpScoreA").textContent = `Score ${a.score.total_score.toFixed(1)} / 100`;
+    document.getElementById("cmpScoreB").textContent = `Score ${b.score.total_score.toFixed(1)} / 100`;
+
+    drawCompare(compareMapA, "cmpA", a);
+    drawCompare(compareMapB, "cmpB", b);
+
+    document.getElementById("cmpMetricsA").innerHTML = compareMetricsRows(a);
+    document.getElementById("cmpMetricsB").innerHTML = compareMetricsRows(b);
+  }
+
+  let cmpLayers = { cmpA: null, cmpB: null };
+  function drawCompare(map, key, r) {
+    if (cmpLayers[key]) map.removeLayer(cmpLayers[key]);
+    cmpLayers[key] = L.geoJSON(r.geojson, { style: styleFor }).addTo(map);
+    try { map.fitBounds(cmpLayers[key].getBounds(), { padding: [10, 10] }); } catch (e) {}
+  }
+
+  function compareMetricsRows(r) {
+    const passPct = r.residential_lots > 0 ? Math.round(100 * r.passing_lots / r.residential_lots) : 0;
+    return `
+      <tr><td>Residential Lots</td><td>${r.residential_lots}</td></tr>
+      <tr><td>Passing Lots</td><td class="green-text">${r.passing_lots}</td></tr>
+      <tr><td>Saleable Land</td><td>${r.saleable_land_pct.toFixed(0)}%</td></tr>
+      <tr><td>Road Length</td><td>${Math.round(r.total_road_length)} m</td></tr>
+      <tr><td>Score</td><td>${r.score.total_score.toFixed(1)}</td></tr>`;
+  }
+
+  // ── Tabs ───────────────────────────────────────────────────────────
+  function setTab(tabName) {
+    document.querySelectorAll(".tab").forEach(t =>
+      t.classList.toggle("active", t.dataset.tab === tabName));
+    const mainMapCard = document.getElementById("mainMap");
+    const compareView = document.getElementById("compareView");
+    if (tabName === "compare") {
+      mainMapCard.classList.add("hide");
+      compareView.style.display = "grid";
+      renderCompare();
+    } else {
+      compareView.style.display = "none";
+      mainMapCard.classList.remove("hide");
+    }
+    invalidateMaps();
+  }
+
+  // ── Export ─────────────────────────────────────────────────────────
+  async function exportLayout(format) {
+    if (!currentJobId || !currentResults.length) {
+      setStatus("error", "Nothing to export", "Generate a layout first.");
+      return;
+    }
+    const r = currentResults[currentSelectedIdx];
+    const res = await fetch(API + "/api/export", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ format, job_id: currentJobId, pattern: r.pattern }),
+    });
+    if (!res.ok) {
+      setStatus("error", "Export failed", await res.text());
+      return;
+    }
+    if (format === "geojson") {
+      const data = await res.json();
+      const blob = new Blob([JSON.stringify(data, null, 2)], { type: "application/geo+json" });
+      downloadBlob(blob, `${r.pattern}.geojson`);
+    } else {
+      const blob = await res.blob();
+      const ext = format === "dxf" ? "dxf" : "zip";
+      downloadBlob(blob, `${r.pattern}_${format}.${ext}`);
+    }
+  }
+
+  function downloadBlob(blob, filename) {
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url; a.download = filename; a.click();
+    setTimeout(() => URL.revokeObjectURL(url), 1000);
+  }
+
+  // ── Scenarios ─────────────────────────────────────────────────────
+  async function refreshScenarios() {
+    try {
+      const res = await fetch(API + "/api/scenarios");
+      const data = await res.json();
+      const sel = document.getElementById("loadScenarioSelect");
+      sel.innerHTML = `<option value="">Load scenario…</option>`;
+      (data.scenarios || []).forEach(s => {
+        const opt = document.createElement("option");
+        opt.value = s.name; opt.textContent = s.name;
+        sel.appendChild(opt);
+      });
+    } catch (e) {}
+  }
+
+  async function saveScenario() {
+    const name = document.getElementById("scenarioName").value.trim();
+    if (!name) { setStatus("error", "No name", "Enter a scenario name."); return; }
+    if (!currentResults.length || !parcelGeoJSON) {
+      setStatus("error", "Nothing to save", "Generate a layout first."); return;
+    }
+    const meta = {
+      zone: document.getElementById("zoneSelect").value,
+      servicing: document.getElementById("servicingSelect").value,
+      patterns: selectedPatterns(),
+      generated_at: new Date().toISOString(),
+      count: currentResults.length,
+    };
+    const res = await fetch(API + "/api/scenarios/save", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ name, meta, parcel_geojson: parcelGeoJSON, layouts: currentResults }),
+    });
+    if (res.ok) { refreshScenarios(); setStatus("done", "Saved", `Scenario "${name}" saved.`); }
+    else { setStatus("error", "Save failed", await res.text()); }
+  }
+
+  async function loadScenario() {
+    const name = document.getElementById("loadScenarioSelect").value;
+    if (!name) return;
+    const res = await fetch(API + `/api/scenarios/${encodeURIComponent(name)}`);
+    if (!res.ok) { setStatus("error", "Load failed", await res.text()); return; }
+    const data = await res.json();
+    if (data.parcel_geojson) {
+      setParcelGeoJSON(data.parcel_geojson);
+    }
+    if (data.meta) {
+      if (data.meta.zone) document.getElementById("zoneSelect").value = data.meta.zone;
+      if (data.meta.servicing) document.getElementById("servicingSelect").value = data.meta.servicing;
+    }
+    if (data.layouts && data.layouts.length) {
+      currentResults = data.layouts;
+      currentSelectedIdx = 0;
+      // Re-fetch a fresh job so exports work for loaded scenarios
+      currentJobId = null;
+      renderResultsTable();
+      selectResult(0);
+      setStatus("done", "Loaded", `Scenario "${name}" loaded (${data.layouts.length} options).`);
+    }
+  }
+
+  // ── Options ───────────────────────────────────────────────────────
+  async function loadOptions() {
+    try {
+      const res = await fetch(API + "/api/options");
+      const data = await res.json();
+      const zoneSel = document.getElementById("zoneSelect");
+      const svcSel = document.getElementById("servicingSelect");
+      zoneSel.innerHTML = "";
+      (data.zones || []).forEach(z => {
+        const o = document.createElement("option"); o.value = z; o.textContent = z;
+        if (z === "R-2") o.selected = true;
+        zoneSel.appendChild(o);
+      });
+      svcSel.innerHTML = "";
+      (data.servicing_types || []).forEach(s => {
+        const o = document.createElement("option"); o.value = s; o.textContent = s;
+        if (s === "serviced") o.selected = true;
+        svcSel.appendChild(o);
+      });
+    } catch (e) {
+      // Fallback defaults if options endpoint unavailable
+      document.getElementById("zoneSelect").innerHTML =
+        `<option>R-1</option><option selected>R-2</option><option>R-3</option>`;
+      document.getElementById("servicingSelect").innerHTML =
+        `<option selected>serviced</option><option>unserviced</option><option>serviced_water_only</option>`;
+    }
+  }
+
+  // ── Wire up the DOM ───────────────────────────────────────────────
+  function wireUI() {
+    // Tabs
+    document.querySelectorAll(".tab").forEach(t =>
+      t.addEventListener("click", () => setTab(t.dataset.tab)));
+    document.getElementById("compareBtn").addEventListener("click", () => setTab("compare"));
+    document.getElementById("cmpOpenA").addEventListener("click", () => selectResult(0));
+    document.getElementById("cmpOpenB").addEventListener("click", () =>
+      selectResult(currentResults.length > 1 ? 1 : 0));
+
+    // Pattern checkboxes
+    document.querySelectorAll(".check[data-pattern]").forEach(c => {
+      c.parentElement.addEventListener("click", () => c.classList.toggle("on"));
+    });
+
+    // Road length slider: toggle auto when moved
+    const slider = document.getElementById("roadLen");
+    const sliderVal = document.getElementById("roadLenVal");
+    let autoMode = true;
+    sliderVal.textContent = "auto";
+    slider.addEventListener("input", () => {
+      autoMode = false;
+      sliderVal.textContent = `${slider.value} m`;
+    });
+    // double-click resets to auto
+    slider.addEventListener("dblclick", () => {
+      autoMode = true; sliderVal.textContent = "auto";
+    });
+
+    // Generate
+    document.getElementById("generateBtn").addEventListener("click", generate);
+
+    // Upload
+    const fileInput = document.getElementById("parcelFile");
+    document.getElementById("uploadBtn").addEventListener("click", () => fileInput.click());
+    fileInput.addEventListener("change", (e) => {
+      const f = e.target.files[0]; if (!f) return;
+      const reader = new FileReader();
+      reader.onload = (ev) => {
+        try {
+          const obj = JSON.parse(ev.target.result);
+          const fc = obj.type === "FeatureCollection" ? obj
+                   : obj.type === "Feature" ? { type: "FeatureCollection", features: [obj] }
+                   : { type: "FeatureCollection", features: [{ type: "Feature", geometry: obj, properties: {} }] };
+          setParcelGeoJSON(fc);
+          setStatus("done", "Parcel loaded", `${f.name} — ${fc.features.length} feature(s).`);
+        } catch (err) { setStatus("error", "Bad GeoJSON", String(err)); }
+      };
+      reader.readAsText(f);
+    });
+
+    // Draw
+    document.getElementById("drawBtn").addEventListener("click", startDraw);
+    document.getElementById("toolDraw").addEventListener("click", startDraw);
+    document.getElementById("toolPan").addEventListener("click", () => setDrawMode(false));
+    document.getElementById("toolZoomIn").addEventListener("click", () => mainMap.zoomIn());
+    document.getElementById("toolZoomOut").addEventListener("click", () => mainMap.zoomOut());
+    document.getElementById("toolFit").addEventListener("click", () => {
+      if (parcelLayer) mainMap.fitBounds(parcelLayer.getBounds(), { padding: [40, 40] });
+    });
+
+    // Export
+    document.getElementById("exportGeoJSON").addEventListener("click", () => exportLayout("geojson"));
+    document.getElementById("exportDXF").addEventListener("click", () => exportLayout("dxf"));
+    document.getElementById("exportQGIS").addEventListener("click", () => exportLayout("qgis"));
+
+    // Scenarios
+    document.getElementById("saveScenarioBtn").addEventListener("click", saveScenario);
+    document.getElementById("loadScenarioBtn").addEventListener("click", loadScenario);
+
+    // Top buttons (no-op placeholders)
+    ["helpBtn", "openBtn", "saveBtn", "settingsBtn"].forEach(id =>
+      document.getElementById(id).addEventListener("click", () =>
+        setStatus("done", "Not wired", "Top toolbar actions are placeholders in v1.")));
+
+    // zone/servicing change updates meta
+    document.getElementById("zoneSelect").addEventListener("change", updateTabMeta);
+    document.getElementById("servicingSelect").addEventListener("change", updateTabMeta);
+  }
+
+  function setDrawMode(on) {
+    if (on) {
+      if (drawHandler) drawHandler.disable();
+      drawHandler = new L.Draw.Polygon(mainMap, {
+        shapeOptions: { color: "#1f6feb", weight: 2, fillOpacity: 0.05 },
+      });
+      drawHandler.enable();
+      document.getElementById("toolDraw").classList.add("active");
+      document.getElementById("toolPan").classList.remove("active");
+    } else {
+      if (drawHandler) { drawHandler.disable(); drawHandler = null; }
+      document.getElementById("toolDraw").classList.remove("active");
+      document.getElementById("toolPan").classList.add("active");
+    }
+  }
+
+  function startDraw() { setDrawMode(true); }
+
+  // ── Boot ───────────────────────────────────────────────────────────
+  window.addEventListener("DOMContentLoaded", () => {
+    initMaps();
+    wireUI();
+    loadOptions();
+    refreshScenarios();
+
+    mainMap.on(L.Draw.Event.CREATED, (e) => {
+      const layer = e.layer;
+      setParcelGeoJSON(featureCollectionFromLayer(layer), true);
+      setDrawMode(false);
+      setStatus("done", "Parcel drawn", "Boundary captured. Adjust controls and click Generate.");
+    });
+  });
+  </script>
+</body>
+</html>
