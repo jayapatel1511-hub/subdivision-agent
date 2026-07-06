@@ -93,11 +93,15 @@ class IrregularRoadPlacer:
                     best_angle = angle_deg
 
             # Apply best angle
+            # NB: compute both components from the ORIGINAL (dx, dy) before
+            # reassigning. Updating dx in place first makes dy use the rotated
+            # dx, compounding a steering error every step.
             angle_rad = math.radians(best_angle)
             cos_a = math.cos(angle_rad)
             sin_a = math.sin(angle_rad)
-            dx = dx * cos_a - dy * sin_a
-            dy = dx * sin_a + dy * cos_a
+            new_dx = dx * cos_a - dy * sin_a
+            new_dy = dx * sin_a + dy * cos_a
+            dx, dy = new_dx, new_dy
 
             # Normalize direction
             dlen = math.sqrt(dx ** 2 + dy ** 2)
@@ -655,41 +659,47 @@ class IrregularLotCarver:
 
     def _remainder_as_polygon_union(self, remaining, rules: LayoutRules) -> list[Lot]:
         """Create remainder lots from leftover developable area."""
-        if remaining.is_empty:
+        if remaining is None or remaining.is_empty:
             return []
 
-        # Union all fragments
+        # Union all fragments. make_valid on a difference of many lots can
+        # return a GeometryCollection (polygons + degenerate slivers); extract
+        # only the polygonal parts so leftover developable area is never
+        # silently dropped from the area accounting.
         unified = unary_union(remaining) if isinstance(remaining, MultiPolygon) else remaining
         unified = make_valid(unified)
 
+        polys: list[Polygon] = []
+        if isinstance(unified, Polygon) and not unified.is_empty:
+            polys = [unified]
+        elif hasattr(unified, "geoms"):
+            polys = [g for g in unified.geoms
+                     if isinstance(g, Polygon) and not g.is_empty]
+        # Merge touching fragments so adjacent slivers count as one remainder
+        if len(polys) > 1:
+            merged = unary_union(polys)
+            if isinstance(merged, Polygon) and not merged.is_empty:
+                polys = [merged]
+            elif isinstance(merged, MultiPolygon):
+                polys = [g for g in merged.geoms
+                         if isinstance(g, Polygon) and not g.is_empty]
+
+        if not polys:
+            return []
+
         lots = []
+        large = [p for p in polys if p.area >= rules.min_lot_area]
+        small = [p for p in polys if p.area < rules.min_lot_area]
 
-        if isinstance(unified, MultiPolygon):
-            # Union small fragments, keep large ones as separate remainders
-            large = []
-            small = []
-            for g in unified.geoms:
-                if isinstance(g, Polygon) and not g.is_empty:
-                    if g.area >= rules.min_lot_area:
-                        large.append(g)
-                    else:
-                        small.append(g)
+        for poly in large:
+            lot = self._make_remainder_lot(poly)
+            if lot:
+                lots.append(lot)
 
-            for poly in large:
-                lot = self._make_remainder_lot(poly)
-                if lot:
-                    lots.append(lot)
-
-            if small:
-                scrap = unary_union(small)
-                if scrap.area >= rules.min_lot_area:
-                    lot = self._make_remainder_lot(scrap)
-                    if lot:
-                        lots.append(lot)
-
-        elif isinstance(unified, Polygon) and not unified.is_empty:
-            if unified.area >= rules.min_lot_area * 0.5:
-                lot = self._make_remainder_lot(unified)
+        if small:
+            scrap = unary_union(small)
+            if scrap.area >= rules.min_lot_area:
+                lot = self._make_remainder_lot(scrap)
                 if lot:
                     lots.append(lot)
 
