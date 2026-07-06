@@ -335,3 +335,101 @@ Searched HRM CDN and halifax.ca for "Standard Specifications for Municipal Servi
 - Flag any zone code that appears in the LUBs but is missing from baseline, or vice versa
 - Flag any numeric value that differs by more than 10% from baseline
 - Run the test suite after importing real parcel fixtures through `intake_geojson.load`
+
+---
+
+## 13. NS Open Data Portal — Socrata-based Provincial Data
+
+**Portal:** `https://data.novascotia.ca`  
+**API:** Socrata v1 (SoQL queries)  
+**License:** NS Open Data License (Crown copyright)  
+**GeoJSON endpoint pattern:** `https://data.novascotia.ca/resource/{dataset_id}.geojson?$limit=N`  
+**JSON endpoint pattern:** `https://data.novascotia.ca/resource/{dataset_id}.json?$select=count(*)`  
+
+**IMPORTANT:** The Socrata catalog search is FEDERATED across all Socrata instances globally. Searching for "parcel" returns results from Winnipeg, Calgary, LA, etc. Only datasets with NS-owned provenance should be used. The 100+ NS-owned datasets were retrieved via `?domains=data.novascotia.ca`.
+
+**NOTE ON PROPERTY PARCELS:** The NS Open Data Portal does NOT have property/parcel boundary data. "Assessment Parcels" (d4mq-wa44) in search results is a Winnipeg dataset that appears in federated search. NS property parcels are behind the NS Property Online system (paid/restricted access). The HRM ArcGIS parcel FeatureServer (Section 1a) remains the only public source for parcel geometry in HRM.
+
+### 13a. ★★ NS Crown Land — Socrata GeoJSON
+
+| Field | Value |
+|-------|-------|
+| **Dataset ID** | `3nka-59nz` |
+| **GeoJSON URL** | `https://data.novascotia.ca/resource/3nka-59nz.geojson?$limit=N` |
+| **Row count** | 18,225 polygons |
+| **Geometry** | MultiPolygon (the_geom column) |
+| **Columns** | fcode, partialown, hectares, acres, shape_leng, shape_area, symbol, dnr_id, pgpi |
+| **Description** | All Crown lands in NS under administration of Minister of Natural Resources |
+| **Updated** | 2026-07-05 |
+| **Provenance** | Official (NS Department of Natural Resources and Renewables) |
+| **Also available** | GeoNova DDS download: `https://nsgi.novascotia.ca/WSF_DDS/DDS.svc/DownloadFile?tkey=fhrTtdnDvfytwLz6&id=87` |
+| **Verified** | ✅ 3 features downloaded via SoQL, MultiPolygon confirmed |
+
+### 13b. ★★ NS Road Network (NSRN) — Socrata GeoJSON
+
+| Field | Value |
+|-------|-------|
+| **Dataset ID** | `484g-adjn` |
+| **GeoJSON URL** | `https://data.novascotia.ca/resource/484g-adjn.geojson?$limit=N` |
+| **Geometry** | MultiLineString (the_geom column) |
+| **Columns** | owner, anum, rte_no, roadc_desc, roadclass, structid, date_rev, date_act, traff_desc, trafficdir, mun_id, street, segid, ids, roadsegid, feat_code, feat_desc, owner_desc |
+| **Description** | Authoritative road centerlines for NS — road class, surface type, lanes, traffic direction |
+| **Provenance** | Official (Province of Nova Scotia) |
+| **Verified** | ✅ 3 features downloaded, MultiLineString confirmed |
+
+### 13c. ★ NS Primary Watersheds — Socrata GeoJSON
+
+| Field | Value |
+|-------|-------|
+| **Dataset ID** | `569x-2wnq` |
+| **GeoJSON URL** | `https://data.novascotia.ca/resource/569x-2wnq.geojson?$limit=N` |
+| **Geometry** | MultiPolygon (the_geom column) |
+| **Columns** | primary_co, shape_area, shape_leng, hectares, acres, flow_dir, river, primary__1, primary_ws, perimeter, area |
+| **Description** | 1:10,000 primary watersheds for Nova Scotia |
+| **Also available** | GeoNova DDS: `https://nsgi.novascotia.ca/WSF_DDS/DDS.svc/DownloadFile?tkey=fhrTtdnDvfytwLz6&id=82` |
+| **Verified** | ✅ Metadata confirmed |
+
+### 13d. ★ NS Protected Areas System — Socrata GeoJSON
+
+| Field | Value |
+|-------|-------|
+| **Dataset ID** | `ticv-5du5` |
+| **GeoJSON URL** | `https://data.novascotia.ca/resource/ticv-5du5.geojson?$limit=N` |
+| **Geometry** | MultiPolygon (the_geom column) |
+| **Columns** | created_us, shape_leng, created_da, papa_key2, papa_key1, reference, stat_date, symbol, pro_name, ha_gis, shape_area, int_name, contrib, owner, web_url (+ more) |
+| **Description** | National Parks, National Wildlife Areas, Provincial Wilderness Areas, Nature Reserves, Provincial Parks, land trust properties and easements |
+| **Provenance** | Official |
+| **Verified** | ✅ Metadata confirmed (25 columns) |
+
+### 13e. ★ NS Municipality Boundaries — Socrata GeoJSON
+
+| Field | Value |
+|-------|-------|
+| **Dataset ID** | `7bqh-hssn` |
+| **GeoJSON URL** | `https://data.novascotia.ca/resource/7bqh-hssn.geojson?$limit=N` |
+| **Geometry** | MultiPolygon (the_geom column) |
+| **Columns** | fullname, objectid, featdesc, shape_area, county, name, cgndb_key, shape_leng |
+| **Description** | Municipal boundaries for towns, district/county/regional municipalities in NS |
+| **Provenance** | Official |
+| **Verified** | ✅ Metadata confirmed |
+
+### 13f. ★ NS Topographic Database - DTM (Digital Terrain Model)
+
+| Field | Value |
+|-------|-------|
+| **Dataset ID** | `5vns-2bw2` |
+| **GeoJSON URL** | `https://data.novascotia.ca/resource/5vns-2bw2.geojson?$limit=N` |
+| **Description** | Provincial digital terrain model — elevation data |
+| **Provenance** | Official |
+| **Verified** | ✅ Listed as geospatial in catalog |
+
+### 13g. NS Groundwater Atlas (user-suggested)
+
+| Field | Value |
+|-------|-------|
+| **URL** | `https://novascotia.ca/natr/meb/geoscience-online/groundwater_about.asp` |
+| **Title** | Nova Scotia Groundwater Atlas |
+| **Content** | Interactive map with water wells, aquifers, geology, seawater intrusion, uranium potential |
+| **GIS Data page** | `https://novascotia.ca/natr/meb/download/gis-data.asp` |
+| **Property/parcel data?** | **NO** — this is a geoscience/water resource atlas, not a land records system |
+| **Useful for constraints?** | Potentially — well log data could inform septic suitability. But no spatial download endpoint found (interactive map only). Data layers (DP ME 430, 428, 483, 490) have individual download pages but no direct API. |
