@@ -99,11 +99,11 @@ def test_qgis_export_geojson_valid(exported_layout):
 
 
 def test_qgis_export_crs_field(exported_layout):
-    """CRS field uses EPSG::2959 urn format."""
+    """CRS field uses EPSG::2961 urn format."""
     with open(exported_layout / "roads.geojson") as f:
         data = json.load(f)
     name = data["crs"]["properties"]["name"]
-    assert "2959" in name, f"Bad CRS: {name}"
+    assert "2961" in name, f"Bad CRS: {name}"
 
 
 def test_qgis_export_qgz_valid_zip(exported_layout):
@@ -119,7 +119,7 @@ def test_qgis_export_project_xml(exported_layout):
     qgz = exported_layout / "test_qgis_export.qgz"
     with zipfile.ZipFile(qgz) as zf:
         qgs = zf.read("project.qgs").decode()
-    assert "EPSG:2959" in qgs, "Missing CRS in project.qgs"
+    assert "EPSG:2961" in qgs, "Missing CRS in project.qgs"
     assert "lots_passing.geojson" in qgs
     assert "roads.geojson" in qgs
     assert "parcel_boundary.geojson" in qgs

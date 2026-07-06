@@ -46,7 +46,7 @@ GEOMETRY_TYPE = {
     "frontage_lines": "Line",
 }
 
-DEFAULT_CRS = 2959  # NAD83(CSRS) / MTM Zone 4 (HRM)
+DEFAULT_CRS = 2961  # NAD83(CSRS) / UTM zone 20N (Nova Scotia)
 
 
 # ── GeoJSON builders ─────────────────────────────────────────────────────────

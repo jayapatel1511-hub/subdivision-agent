@@ -51,8 +51,10 @@ def load_geojson_parcel(path: str, rules: Optional[LayoutRules] = None) -> Parce
     crs_field = raw.get("crs")
     if crs_field and crs_field.get("type") == "name":
         name = crs_field.get("properties", {}).get("name", "")
-        # Parse "urn:ogc:def:crs:EPSG::2959" or "EPSG:2959"
-        if "2959" in name:
+        # Parse "urn:ogc:def:crs:EPSG::2961" or "EPSG:2961"
+        if "2961" in name:
+            source_crs = 2961
+        elif "2959" in name:
             source_crs = 2959
         elif "4326" in name:
             source_crs = 4326
@@ -103,14 +105,19 @@ def load_geojson_parcel(path: str, rules: Optional[LayoutRules] = None) -> Parce
         else:
             geom = unioned
 
-    # Clean and orient
+    # Reproject BEFORE cleaning: clean_polygon's simplify tolerance is in
+    # metres, so the geometry must be in a projected CRS first. Geographic
+    # input (4326) goes to NAD83(CSRS) / UTM zone 20N; input already in a
+    # projected CRS is kept as-is.
+    if source_crs == 4326:
+        target_crs = 2961  # NAD83(CSRS) / UTM zone 20N (Nova Scotia)
+        geom = to_projected(geom, source_crs, target_crs)
+    else:
+        target_crs = source_crs
+
+    # Clean and orient (in projected metres)
     geom = clean_polygon(geom)
     geom = force_ccw_exterior(geom)
-
-    # Reproject if needed
-    target_crs = 2959  # MTM zone 4 for HRM
-    if source_crs != target_crs:
-        geom = to_projected(geom, source_crs, target_crs)
 
     # Build parcel
     pid = props.get("pid", "")
