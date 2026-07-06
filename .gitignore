@@ -2,4 +2,4 @@
 data/raw/zoning/*.geojson
 data/raw/parcels/*.geojson
 data/raw/constraints/*.geojson
-data/raw/bylaws/*.pdf
+data/raw/bylaws/*.pdf._*
