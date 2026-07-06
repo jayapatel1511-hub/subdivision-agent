@@ -1,0 +1,21 @@
+zone_code,zone_name,municipality,min_lot_area_sqft,min_lot_area_unit,min_lot_frontage_ft,min_front_yard_local_ft,min_front_yard_collector_ft,min_front_yard_arterial_ft,min_rear_yard_ft,min_side_yard_ft,min_flankage_yard_local_ft,min_flankage_yard_collector_ft,min_flankage_yard_arterial_ft,max_height_ft,max_dwelling_units_per_lot,max_lot_coverage_pct,source_doc,source_page,notes
+RSU,Residential Single Dwelling Unit,Bedford,6000,sq ft serviced,60,15,,30,20,8,15,,30,35,1,35,Bedford LUB,p59,
+RTU_duplex,Residential Two Dwelling Unit - Duplex/Single w Basement Apt,Bedford,6000,sq ft,60,15,,30,20,8,15,,30,35,2,35,Bedford LUB,p60,Duplex dwellings & singles with basement apartment
+RTU_semidet,Residential Two Dwelling Unit - Semi-Detached/Linked,Bedford,3000,sq ft per unit,30,15,,30,20,8,15,,30,35,1,35,Bedford LUB,p60,Per unit; common side yard 2.5 ft for link homes
+RMU,Residential Multiple Dwelling Unit,Bedford,10000,sq ft,100,30,,30,40,15,30,,30,35,36,35,Bedford LUB,p61,Side yard: 15ft or half building height whichever greater; density: 1500 sqft/dwelling (1BR), 2000 sqft (2+BR)
+RTH,Residential Townhouse,Bedford,2000,sq ft per unit,20,15,,30,20,10,15,,30,35,1,35,Bedford LUB,p62,Max density 15 units/net acre
+RCDD,Residential Comprehensive Development District,Bedford,NULL,,,,,,,NULL,,,,NULL,,NULL,Bedford LUB,p63,Development agreement required - no fixed zone requirements
+RR,Residential Reserve,Bedford,217800,sq ft (5 acres),360,30,,30,50,8,30,,30,35,1,10,Bedford LUB,p66,Unserviced lots may reduce to 1 acre/120ft frontage if dwelling pre-Oct 9 1991
+CGB,General Business District,Bedford,10000,sq ft,60,15,,,0,,20,,,3 floors,0,,Bedford LUB,p67,Rear yard: 0ft except 40ft abutting residential; Side yard: 0ft except 20ft or half height abutting residential
+CSC,Shopping Centre,Bedford,217800,sq ft (5 acres),500,30,,,0,,40,,,52,,50,Bedford LUB,p68,Rear/side: 0ft except 40ft abutting residential zone
+CMC,Mainstreet Commercial,Bedford,4000,sq ft,40,0,,0,40,NULL,NULL,,,NULL,NULL,,Bedford LUB,p69,Side yard truncated in extraction
+CHWY,Highway Oriented Commercial,Bedford,20000,sq ft,100,15,,,0,,40,,,35,0,50,Bedford LUB,p72,Rear/side: 0ft except 40ft from residential
+ILI,Light Industrial,Bedford,5000,sq ft,50,30,,,0,,40,,,52,,70,Bedford LUB,p75,Rear/side: 0ft except 40ft abutting residential
+IHO,Harbour Oriented Industrial,Bedford,43560,sq ft (1 acre),100,30,,,0,,40,,,52,0,,Bedford LUB,p80,Rear/side: 0ft except 40ft abutting residential
+IHI,Heavy Industrial,Bedford,5000,sq ft,50,30,,,15,,40,,,52,,70,Bedford LUB,p81,Rear yard not captured; landscaping/buffer requirements
+SI,Institutional,Bedford,10000,sq ft,100,20,30,30,20,8,20,30,30,35,,35,Bedford LUB,p90,Flankage: Local 20ft; Collector/Arterial 30ft
+SU,Utilities,Bedford,6000,sq ft,60,20,30,30,20,8,20,30,30,35,,35,Bedford LUB,p91,
+P,Park,Bedford,6000,sq ft,60,20,30,30,20,8,20,30,30,35,,35,Bedford LUB,p92,Side yard: 8ft or half building height whichever greater
+POS,Park Open Space,Bedford,20000,sq ft,60,20,30,30,20,8,20,30,30,20,,10,Bedford LUB,p93,Front & flankage combined
+RPK,Regional Park,Bedford,NULL,,,,,20m,20m,,20m,,,,,,50,Bedford LUB,p94,Coverage: 50% if <4ha, 5% if >=4ha
+CD1,C&D Materials Transfer Station,Bedford,40000,sq ft (central services),49.2,82,,,98.4,98.4,,,,36,,50,Bedford LUB,p97,Frontage: 49.2ft central, 98.4ft on-site; Lot area: 120000 sqft on-site services
