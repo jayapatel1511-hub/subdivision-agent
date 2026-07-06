@@ -1,0 +1,9 @@
+municipality,plan_area,context,min_lot_area_sqm,min_lot_frontage_m,servicing,source_doc,source_page,notes
+HRM (Regional),Default (no LUB),All areas,464.5,15.24,Serviced (sewer+water),Regional Subdivision By-law,p19,S32(a)(i): default for Dartmouth area; reduced to 7.62m on outside curve if 15.24m at 6.1m depth
+HRM (Regional),Default (no LUB),All areas,2700,45.72,On-site sewage + on-site/water system,Regional Subdivision By-law,p19,S32(b): unserviced default
+HRM (Regional),Rural Commuter/Rural Resource,Trunk & route highways (Schedule K),,61,Any,Regional Subdivision By-law,p19,S31(2): 61m frontage on trunk/route highways in rural areas
+HRM (Regional),Rural street,Remainder lot in phased subdivision,,20,Any,Regional Subdivision By-law,p12,S7: 20m for rural street remainder
+HRM (Regional),Urban street,Remainder lot in phased subdivision,,16,Any,Regional Subdivision By-law,p12,S7: 16m for urban street remainder
+HRM (Regional),Dartmouth (former City),Semi-detached subdivision,464.5,7.62,Serviced,Regional Subdivision By-law,p19,S32(a)(iii): per unit frontage for semi-detached
+HRM (Regional),Bedford (former Town),RSU/RTU vacant lot subdivision,557.4,15.24,Serviced,Regional Subdivision By-law,p30,S66: lots <36.576m frontage pre Oct 9 1991
+HRM (Regional),Bedford (former Town),RR zone unserviced,4047,36.576,Unserviced,Regional Subdivision By-law,p30,S68: dwelling pre Oct 9 1991

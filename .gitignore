@@ -1,51 +1,5 @@
-# macOS
-._*
-.DS_Store
-.AppleDouble
-.LSOverride
-
-# Python
-__pycache__/
-*.py[cod]
-*$py.class
-*.so
-.Python
-build/
-develop-eggs/
-dist/
-downloads/
-eggs/
-.eggs/
-lib/
-lib64/
-parts/
-sdist/
-var/
-wheels/
-*.egg-info/
-.installed.cfg
-*.egg
-
-# Virtual environments
-venv/
-.venv/
-env/
-ENV/
-
-# Testing
-.pytest_cache/
-.coverage
-htmlcov/
-.tox/
-
-# IDE
-.idea/
-.vscode/
-*.swp
-*.swo
-*~
-
-# OS
-Thumbs.db
-ehthumbs.db
-Desktop.ini
+# Large raw data files — re-download via URLs in data/raw/SOURCES.md
+data/raw/zoning/*.geojson
+data/raw/parcels/*.geojson
+data/raw/constraints/*.geojson
+data/raw/bylaws/*.pdf
