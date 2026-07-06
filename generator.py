@@ -616,13 +616,24 @@ class LayoutGenerator:
             # Store current roads for reference in lot carving
             self._current_roads = roads
 
-            # Carve lots along each road
+            # Carve lots along each road. Subtract each road's carved lots
+            # from developable before carving the next road, otherwise later
+            # roads carve into area already claimed by earlier roads and lots
+            # overlap (T-road/spine produced 48/76 overlapping pairs; remaining
+            # could go negative).
             all_lots = []
             for road in roads:
+                if developable.is_empty:
+                    break
                 lots = self._carve_lots_along_road(road, developable)
                 all_lots.extend(lots)
+                for lot in lots:
+                    developable = developable.difference(lot.geometry)
 
-            # Find remaining developable area and create remainder lots
+            # Find remaining developable area and create remainder lots.
+            # Lots were already subtracted above; re-differencing is a no-op
+            # but keeps the GeometryCollection/MultiPolygon decomposition below
+            # working from the final developable shape.
             remaining = developable
             for lot in all_lots:
                 remaining = remaining.difference(lot.geometry)
