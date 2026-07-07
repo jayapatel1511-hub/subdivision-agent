@@ -379,6 +379,7 @@ class LayoutGenerator:
                     road_segment_id=self._current_road_index(road),
                     lot_type=lot_type,
                     access_point=Point(mid_point.x, mid_point.y),
+                    road_row_polygon=road.row_polygon,
                 )
                 lot.compute_properties()
                 lots.append(lot)

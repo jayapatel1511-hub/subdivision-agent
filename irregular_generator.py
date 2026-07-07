@@ -557,6 +557,7 @@ class IrregularLotCarver:
                     lot_type=lot_type,
                     access_point=Point(frontage_seg.interpolate(0.5, normalized=True).x,
                                        frontage_seg.interpolate(0.5, normalized=True).y),
+                    road_row_polygon=road.row_polygon,
                 )
                 lot.compute_properties()
                 lots.append(lot)

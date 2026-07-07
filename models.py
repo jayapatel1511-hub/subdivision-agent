@@ -8,11 +8,12 @@ Just parcel, rules, lots, roads, and scoring.
 from __future__ import annotations
 
 import json
+import math
 from dataclasses import dataclass, field
 from enum import Enum
 from typing import Optional
 
-from shapely.geometry import Polygon, MultiPolygon, LineString, Point, MultiLineString
+from shapely.geometry import Polygon, MultiPolygon, LineString, Point, MultiLineString, MultiPoint
 from shapely.ops import unary_union
 
 # ── Geometry Helpers (polygon-native) ───────────────────────────────────────
@@ -48,22 +49,31 @@ def poly_buffer(line, width, cap_style=2, join_style=2):
     """Buffer a line by width (half on each side)."""
     return line.buffer(width, cap_style=cap_style, join_style=join_style)
 
-def frontage_length(lot, road_row) -> float:
-    """Length of lot's shared boundary with the road ROW polygon."""
+def frontage_length(lot, road_row, tolerance: float = 0.6) -> float:
+    """Length of the lot's boundary that abuts the road ROW polygon.
+
+    This is the *legal* frontage — the length of the lot line shared with
+    (or within `tolerance` of) the road right-of-way. Lots are carved with a
+    small 0.5 m offset from the ROW, so an exact `lot.intersection(row)`
+    would be empty; we therefore measure the portion of the lot's boundary
+    that falls within `tolerance` of the ROW polygon. A lot with no boundary
+    near any ROW (landlocked) returns 0.0, making such lots self-detecting.
+    """
     if lot is None or road_row is None or lot.is_empty or road_row.is_empty:
         return 0.0
     try:
-        intersection = lot.intersection(road_row)
-        if intersection.is_empty:
+        boundary = lot.boundary
+        if boundary is None or boundary.is_empty:
             return 0.0
-        if isinstance(intersection, LineString):
-            return intersection.length
-        if isinstance(intersection, MultiLineString):
-            return sum(g.length for g in intersection.geoms)
-        # If the intersection is a polygon (lot shares area with road),
-        # the boundary of that intersection shared with the road is the frontage
-        if hasattr(intersection, 'exterior'):
-            return intersection.exterior.length / 2  # rough approximation
+        # Portion of the lot boundary lying within `tolerance` of the ROW.
+        near = boundary.intersection(road_row.buffer(tolerance))
+        if near.is_empty:
+            return 0.0
+        if isinstance(near, LineString):
+            return near.length
+        if isinstance(near, (MultiLineString, MultiPoint)):
+            return sum(g.length for g in near.geoms if hasattr(g, 'length'))
+        # Point or other degenerate — negligible frontage
         return 0.0
     except Exception:
         return 0.0
@@ -195,6 +205,10 @@ class Lot:
     road_segment_id: int = -1           # Which road serves this lot
     lot_type: LotType = LotType.RESIDENTIAL
     access_point: Optional[Point] = None
+    # The road right-of-way polygon adjacent to this lot. When set,
+    # `frontage` is measured as the length of the lot's boundary abutting
+    # this polygon (the legal frontage), not the construction segment.
+    road_row_polygon: Optional[Polygon] = None
 
     # Computed properties (filled by checker)
     area: float = 0.0
@@ -222,16 +236,42 @@ class Lot:
     def compute_properties(self):
         """Fill in geometric properties from the polygon."""
         self.area = self.geometry.area
-        # frontage is length of the frontage_line
-        self.frontage = self.frontage_line.length if self.frontage_line else 0.0
-        # depth: approximate as area / frontage (simple metric)
-        if self.frontage > 0:
-            self.depth = self.area / self.frontage
+        # Frontage: the legal frontage is the length of the lot's boundary
+        # abutting the road ROW polygon. Fall back to the construction
+        # `frontage_line` length when no ROW polygon is attached (e.g. for
+        # remainder lots). A lot with no ROW contact gets frontage 0.0 —
+        # this makes landlocked lots self-detecting in the access check.
+        if self.road_row_polygon is not None:
+            self.frontage = frontage_length(self.geometry, self.road_row_polygon)
         else:
-            self.depth = 0.0
-        # width: minimum width of the lot
-        bounds = self.geometry.bounds
-        self.width_min = min(bounds[2] - bounds[0], bounds[3] - bounds[1])
+            self.frontage = self.frontage_line.length if self.frontage_line else 0.0
+        # Depth / width from the minimum rotated rectangle, which reflects
+        # the lot's actual orientation rather than the axis-aligned bbox or
+        # the area/frontage approximation (which over-estimates depth on
+        # wide shallow lots and under-estimates it on narrow deep ones).
+        try:
+            mrr = self.geometry.minimum_rotated_rectangle
+        except Exception:
+            mrr = None
+        if mrr is not None and not mrr.is_empty and hasattr(mrr, 'exterior'):
+            mrr_w = list(mrr.exterior.coords)
+            edge_lengths = []
+            for i in range(len(mrr_w) - 1):
+                dx = mrr_w[i + 1][0] - mrr_w[i][0]
+                dy = mrr_w[i + 1][1] - mrr_w[i][1]
+                edge_lengths.append(math.hypot(dx, dy))
+            if len(edge_lengths) >= 2:
+                # A rectangle has two distinct side lengths (each repeated)
+                self.width_min = min(edge_lengths)
+                self.depth = max(edge_lengths)
+            else:
+                self.width_min = min(edge_lengths) if edge_lengths else 0.0
+                self.depth = self.area / self.frontage if self.frontage > 0 else 0.0
+        else:
+            # Degenerate geometry — fall back to axis-aligned bbox
+            bounds = self.geometry.bounds
+            self.width_min = min(bounds[2] - bounds[0], bounds[3] - bounds[1])
+            self.depth = self.area / self.frontage if self.frontage > 0 else 0.0
         # shape quality: compactness ratio (4π × area / perimeter²)
         self.shape_quality = compactness(self.geometry)
 
